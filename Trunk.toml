@@ -1,0 +1,7 @@
+[build]
+# Point to our `index.html`.
+target = "web/index.html"
+
+[serve]
+# Use IPv4 first - prevents errors on Windows
+addresses = ["127.0.0.1", "::1"]

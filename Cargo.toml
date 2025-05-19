@@ -1,0 +1,78 @@
+[package]
+name = "recipe_game"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bevy = "0.16.0"
+bevy_skein = "0.2.1"
+avian3d = "0.3.0"
+bevy_mod_outline = "0.10"
+bevy-inspector-egui = { version = "0.31.0", optional = true }
+
+[features]
+default = [
+  # Default to a native dev build.
+  "dev_native",
+]
+dev = [
+  # Improve compile times for dev builds by linking Bevy as a dynamic library.
+  "bevy/dynamic_linking",
+  "dep:bevy-inspector-egui",
+]
+dev_native = [
+  "dev",
+  # Enable asset hot reloading for native dev builds.
+  "bevy/file_watcher",
+]
+
+
+[lints.clippy]
+# Bevy supplies arguments to systems via dependency injection, so it's natural for systems to
+# request more than 7 arguments -- which triggers this lint.
+too_many_arguments = "allow"
+# Queries that access many components may trigger this lint.
+type_complexity = "allow"
+# Allow `if x == false { }`
+bool_comparison = "allow"
+redundant_type_annotations = "warn"
+
+# Compile with Performance Optimizations:
+# https://bevyengine.org/learn/quick-start/getting-started/setup/#compile-with-performance-optimizations
+
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+
+# Enable a large amount of optimization in the dev profile for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
+
+# Remove expensive debug assertions due to <https://github.com/bevyengine/bevy/issues/14291>
+[profile.dev.package.wgpu-types]
+debug-assertions = false
+
+# The default profile is optimized for Wasm builds because
+# that's what [Trunk reads](https://github.com/trunk-rs/trunk/issues/605).
+# Optimize for size in the wasm-release profile to reduce load times and bandwidth usage on web.
+[profile.release]
+# Compile the entire crate as one unit.
+# Slows compile times, marginal improvements.
+codegen-units = 1
+# Do a second optimization pass over the entire program, including dependencies.
+# Slows compile times, marginal improvements.
+lto = "thin"
+# Optimize with size in mind (also try "z", sometimes it is better).
+# Slightly slows compile times, great improvements to file size and runtime performance.
+opt-level = "s"
+# Strip all debugging information from the binary to slightly reduce file size.
+strip = "debuginfo"
+
+# Override some settings for native builds.
+[profile.release-native]
+# Default to release profile values.
+inherits = "release"
+# Optimize with performance in mind.
+opt-level = 3
+# Keep debug information in the binary.
+strip = "none"
