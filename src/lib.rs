@@ -6,7 +6,10 @@ use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
+mod action;
+mod interaction;
 mod movement;
+mod physics;
 mod ui;
 
 pub struct AppPlugin;
@@ -18,9 +21,10 @@ impl Plugin for AppPlugin {
             // PhysicsPickingPlugin,
             PhysicsDebugPlugin::default(),
             bevy_skein::SkeinPlugin::default(),
-            bevy_mod_outline::OutlinePlugin,
             ui::UiPlugin,
+            physics::PhysicsPlugin,
             movement::MovementPlugin,
+            interaction::InteractionPlugin,
         ))
         .add_systems(Startup, setup_camera_and_environment);
 
