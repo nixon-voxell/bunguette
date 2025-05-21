@@ -21,6 +21,7 @@ impl Plugin for AppPlugin {
             PhysicsDebugPlugin::default(),
             bevy_skein::SkeinPlugin::default(),
             ui::UiPlugin,
+            physics::PhysicsPlugin,
             movement::MovementPlugin,
             interaction::InteractionPlugin,
         ))

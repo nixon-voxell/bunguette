@@ -16,8 +16,14 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(bevy_mod_outline::OutlinePlugin);
 
-        app.add_systems(Startup, spawn_test_scene)
-            .add_observer(setup_interactable_outline);
+        app.add_systems(Startup, spawn_test_scene).add_systems(
+            Update,
+            (
+                setup_interactable_outline,
+                detect_interactables,
+                mark_item,
+            ),
+        );
         // .add_observer(setup_interaction_player);
 
         app.register_type::<Interactable>()
@@ -38,78 +44,144 @@ fn spawn_test_scene(
 }
 
 fn detect_interactables(
-    mut q_players: Query<(
-        &InteractionPlayer,
-        &mut MarkedItem,
-        Entity,
-    )>,
+    mut q_players: Query<
+        (&InteractionPlayer, &mut MarkedItem, Entity),
+        Changed<GlobalTransform>,
+    >,
     q_global_transforms: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
-) -> Result {
+) {
     for (player, mut marked_item, entity) in q_players.iter_mut() {
-        let player_transform = q_global_transforms.get(entity)?;
+        let player_transform = q_global_transforms
+            .get(entity)
+            .expect("Player should have a global transform!");
+
+        let player_translation = player_transform.translation();
 
         let item_entities = spatial_query.shape_intersections(
-            &Collider::sphere(0.5),
-            player_transform.translation(),
+            &Collider::sphere(player.range),
+            player_translation,
             Quat::IDENTITY,
             &SpatialQueryFilter::from_mask(GameLayer::Interactable),
         );
 
-        let player_forward = player_transform.forward();
-        let front =
-            Vec2::new(player_forward.x, player_forward.z).normalize();
+        // No items around.
+        if item_entities.is_empty() {
+            marked_item.0 = None;
+            continue;
+        }
 
-        let closest_entity = 0;
-        let closest_dist = f32::MAX;
+        // Find the closest items and keep track of items within the boundary range.
+        let mut closest_idx = 0;
+        let mut closest_dist = f32::MAX;
 
-        for item_entity in item_entities {
-            let Ok(item_translation) =
-                q_global_transforms.get(item_entity)
+        let mut boundary_entities = Vec::new();
+
+        for (i, &item_entity) in item_entities.iter().enumerate() {
+            let Ok(item_translation) = q_global_transforms
+                .get(item_entity)
+                .map(|g| g.translation())
             else {
                 continue;
             };
-        }
-    }
 
-    Ok(())
+            let dist =
+                item_translation.distance_squared(player_translation);
+
+            if dist < closest_dist {
+                closest_idx = i;
+                closest_dist = dist;
+            }
+
+            if dist < player.boundary_range {
+                boundary_entities.push((i, item_translation));
+            }
+        }
+
+        // Find the one that is closest to the front of the player
+        // for boundary items.
+        if boundary_entities.is_empty() == false {
+            let player_forward = player_transform.forward();
+
+            let mut closest_angle = -1.0;
+            closest_idx = 0;
+
+            for (i, item_translation) in boundary_entities {
+                let angle = (item_translation - player_translation)
+                    .normalize()
+                    .dot(player_forward.as_vec3());
+
+                if angle < closest_angle {
+                    closest_idx = i;
+                    closest_angle = angle;
+                }
+            }
+        }
+
+        info!("{closest_idx}");
+
+        marked_item.0 = Some(item_entities[closest_idx]);
+    }
 }
 
-fn clear_prev_marked_item() {}
+fn mark_item(
+    mut q_marked_items: Query<
+        (&MarkedItem, &mut PrevMarkedItem),
+        Changed<MarkedItem>,
+    >,
+    mut q_outlines: Query<&mut OutlineVolume>,
+) {
+    for (marked, mut prev_marked) in q_marked_items.iter_mut() {
+        if let Some(mut outline) =
+            prev_marked.0.and_then(|e| q_outlines.get_mut(e).ok())
+        {
+            outline.visible = false;
+        }
+
+        if let Some(mut outline) =
+            marked.0.and_then(|e| q_outlines.get_mut(e).ok())
+        {
+            outline.visible = true;
+            outline.colour = MARK_COLOR;
+        }
+
+        prev_marked.0 = marked.0;
+    }
+}
 
 fn setup_interactable_outline(
-    trigger: Trigger<OnAdd, Interactable>,
+    q_interactables: Query<Entity, Added<Interactable>>,
     mut commands: Commands,
     q_meshes: Query<(), With<Mesh3d>>,
     q_children: Query<&Children>,
 ) {
-    let entity = trigger.target();
+    for entity in q_interactables.iter() {
+        const VOLUME: OutlineVolume = OutlineVolume {
+            width: 2.0,
+            visible: false,
+            colour: MARK_COLOR,
+        };
 
-    const VOLUME: OutlineVolume = OutlineVolume {
-        width: 2.0,
-        visible: false,
-        colour: MARK_COLOR,
-    };
-
-    commands.entity(entity).insert(CollisionLayers::new(
-        GameLayer::Interactable,
-        LayerMask::ALL,
-    ));
-
-    if q_meshes.contains(entity) {
-        commands
-            .entity(entity)
-            .insert((VOLUME, OutlineMode::FloodFlat));
-    } else {
-        commands.entity(entity).insert((
-            VOLUME,
-            OutlineMode::FloodFlat,
-            OutlineStencil::default(),
+        commands.entity(entity).insert(CollisionLayers::new(
+            GameLayer::Interactable,
+            LayerMask::ALL,
         ));
 
-        for child in q_children.iter_descendants(entity) {
-            if q_meshes.contains(child) {
-                commands.entity(child).insert(InheritOutline);
+        if q_meshes.contains(entity) {
+            commands
+                .entity(entity)
+                .insert((VOLUME, OutlineMode::FloodFlat));
+        } else {
+            commands.entity(entity).insert((
+                VOLUME,
+                OutlineMode::FloodFlat,
+                OutlineStencil::default(),
+            ));
+
+            for child in q_children.iter_descendants(entity) {
+                if q_meshes.contains(child) {
+                    commands.entity(child).insert(InheritOutline);
+                }
             }
         }
     }
@@ -120,10 +192,10 @@ fn setup_interactable_outline(
 #[reflect(Component)]
 pub struct Interactable;
 
-#[derive(Component, Default, Debug, Clone, Copy)]
+#[derive(Component, Deref, DerefMut, Default, Debug, Clone, Copy)]
 pub struct PrevMarkedItem(pub Option<Entity>);
 
-#[derive(Component, Default, Debug, Clone, Copy)]
+#[derive(Component, Deref, DerefMut, Default, Debug, Clone, Copy)]
 #[require(PrevMarkedItem)]
 pub struct MarkedItem(pub Option<Entity>);
 
