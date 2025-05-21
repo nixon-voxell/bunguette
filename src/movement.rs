@@ -12,10 +12,10 @@ impl Plugin for MovementPlugin {
                 Update,
                 (
                     keyboard_input,
-                    update_grounded,
                     apply_gravity,
                     movement,
                     apply_movement_damping,
+                    update_grounded,
                 )
                     .chain(),
             )
@@ -25,79 +25,9 @@ impl Plugin for MovementPlugin {
                     .in_set(NarrowPhaseSet::Last),
             );
 
-        app.register_type::<CharacterController>()
-            .register_type::<Grounded>()
-            .register_type::<MovementAcceleration>()
-            .register_type::<MovementDampingFactor>()
-            .register_type::<JumpImpulse>()
-            .register_type::<ControllerGravity>()
-            .register_type::<MaxSlopeAngle>();
+        app.register_type::<CharacterController>();
     }
 }
-
-// /// Components for movement parameters
-// #[derive(Bundle)]
-// pub struct MovementBundle {
-//     pub acceleration: MovementAcceleration,
-//     pub damping: MovementDampingFactor,
-//     pub jump_impulse: JumpImpulse,
-//     pub max_slope_angle: MaxSlopeAngle,
-// }
-
-// impl MovementBundle {
-//     pub const fn new(
-//         acc: Scalar,
-//         damp: Scalar,
-//         jump: Scalar,
-//         slope: Scalar,
-//     ) -> Self {
-//         Self {
-//             acceleration: MovementAcceleration(acc),
-//             damping: MovementDampingFactor(damp),
-//             jump_impulse: JumpImpulse(jump),
-//             max_slope_angle: MaxSlopeAngle(slope),
-//         }
-//     }
-// }
-
-// impl Default for MovementBundle {
-//     fn default() -> Self {
-//         Self::new(50.0, 0.9, 4.0, std::f32::consts::PI * 0.45)
-//     }
-// }
-
-// /// Bundle grouping all necessary character controller components
-// #[derive(Bundle)]
-// pub struct CharacterControllerBundle {
-//     pub controller: CharacterController,
-//     pub body: RigidBody,
-//     pub collider: Collider,
-//     pub ground_caster: ShapeCaster,
-//     pub gravity: ControllerGravity,
-//     pub movement: MovementBundle,
-// }
-
-// impl CharacterControllerBundle {
-//     pub fn new(collider: Collider, gravity: Vector) -> Self {
-//         let mut caster_shape = collider.clone();
-//         caster_shape.set_scale(Vector::new(1.1, 0.5, 1.1), 10);
-
-//         Self {
-//             controller: CharacterController,
-//             body: RigidBody::Kinematic,
-//             collider,
-//             ground_caster: ShapeCaster::new(
-//                 caster_shape,
-//                 Vector::ZERO,
-//                 Quaternion::default(),
-//                 Dir3::NEG_Y,
-//             )
-//             .with_max_distance(1.5),
-//             gravity: ControllerGravity(gravity),
-//             movement: MovementBundle::default(),
-//         }
-//     }
-// }
 
 // -- TESTING SCENE ----------------------------------------------------------------
 fn spawn_test_scene(
@@ -111,42 +41,6 @@ fn spawn_test_scene(
         ),
     ));
 }
-// -- Initialization For Testing (TODO: Move to other place) -----------------------------------------
-
-/// Spawn a simple red cube using the character controller bundle
-// fn spawn_character(
-//     mut commands: Commands,
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     mut materials: ResMut<Assets<StandardMaterial>>,
-// ) {
-//     commands.spawn((
-//         Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-//         MeshMaterial3d(materials.add(Color::srgb_u8(255, 0, 0))),
-//         Transform::from_xyz(0.0, 2.0, 0.0),
-//         CharacterControllerBundle::new(
-//             Collider::cuboid(1.0, 1.0, 1.0),
-//             Vector::NEG_Y * 9.81,
-//         ),
-//     ));
-// }
-
-// /// Spawn a static ground plate so the character has something to move on
-// fn spawn_plate(
-//     mut commands: Commands,
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     mut materials: ResMut<Assets<StandardMaterial>>,
-// ) {
-//     let mesh = meshes.add(Cuboid::new(100.0, 0.1, 100.0));
-//     let material = materials.add(Color::srgb_u8(0, 255, 0));
-
-//     commands.spawn((
-//         Mesh3d(mesh),
-//         MeshMaterial3d(material),
-//         Transform::from_xyz(0.0, 0.0, 0.0),
-//         RigidBody::Static,
-//         Collider::cuboid(50.0, 2.0, 50.0),
-//     ));
-// }
 
 // -- Keyboard Input ----------------------------------------------------------------
 
@@ -179,37 +73,30 @@ fn keyboard_input(
 
 // -- Movement ----------------------------------------------------------------
 
-/// Updates grounded state by casting a small shape downward
+/// Updates grounded state
 fn update_grounded(
-    mut commands: Commands,
-    mut query: Query<
-        (Entity, &ShapeHits, &Rotation, Option<&MaxSlopeAngle>),
-        With<CharacterController>,
-    >,
+    mut query: Query<(
+        &ShapeHits,
+        &Rotation,
+        &mut CharacterController,
+    )>,
 ) {
-    for (entity, hits, rotation, slope) in query.iter_mut() {
-        let grounded = hits.iter().any(|hit| {
+    for (hits, rot, mut ctl) in query.iter_mut() {
+        let on_ground = hits.iter().any(|hit| {
             let normal = if hit.normal2.y > 0.0 {
                 hit.normal2
             } else {
                 -hit.normal2
             };
-
-            if let Some(MaxSlopeAngle(max)) = slope {
-                let angle = (rotation * normal)
-                    .angle_between(Vector::Y)
-                    .abs();
-                angle <= *max
-            } else {
-                // Consider ground if normal points mostly up
-                normal.y > 0.5
-            }
+            let angle = (rot * normal).angle_between(Vector::Y).abs();
+            angle <= ctl.max_slope_angle
         });
-
-        if grounded {
-            commands.entity(entity).insert(Grounded);
+        if on_ground {
+            ctl.grounded = true;
+            // Zero vertical velocity when grounded
+            ctl.velocity.y = 0.0;
         } else {
-            commands.entity(entity).remove::<Grounded>();
+            ctl.grounded = false;
         }
     }
 }
@@ -217,19 +104,13 @@ fn update_grounded(
 /// Applies gravity to vertical velocity
 fn apply_gravity(
     time: Res<Time>,
-    mut query: Query<(
-        &ControllerGravity,
-        &mut LinearVelocity,
-        Option<&Grounded>,
-    )>,
+    mut query: Query<&mut CharacterController>,
 ) {
-    let delta = time.delta_secs_f64().adjust_precision();
-    for (gravity, mut vel, grounded) in query.iter_mut() {
-        // Only apply gravity when not grounded
-        if grounded.is_none() {
-            vel.0.y += gravity.0.y * delta;
-            let max_fall_speed = -20.0;
-            vel.0.y = vel.0.y.max(max_fall_speed);
+    let dt = time.delta_secs_f64().adjust_precision();
+    for mut ctl in query.iter_mut() {
+        if !ctl.grounded {
+            let gravity = ctl.gravity;
+            ctl.velocity += gravity * dt;
         }
     }
 }
@@ -239,106 +120,86 @@ fn movement(
     time: Res<Time>,
     mut reader: EventReader<MovementAction>,
     cam_tf_q: Query<&GlobalTransform, With<Camera3d>>,
-    mut query: Query<
-        (
-            &MovementAcceleration,
-            &JumpImpulse,
-            &mut LinearVelocity,
-            Option<&Grounded>,
-            &mut Transform,
-        ),
-        With<CharacterController>,
-    >,
+    mut query: Query<(&mut CharacterController, &mut Transform)>,
 ) {
-    let dt = time.delta_secs_f64().adjust_precision();
+    let dt = time.delta_secs_f64() as f32;
 
     // Speed caps
     let max_walk = 5.0;
     let max_sprint = 10.0;
 
-    // Get camera yaw from its GlobalTransform
+    // Get camera transform
     let cam_tf = match cam_tf_q.single() {
         Ok(tf) => tf,
         Err(_) => return,
     };
-    // Extract yaw (rotation around Y) via Euler YXZ sequence
-    let (cam_yaw, _, _) = cam_tf.rotation().to_euler(EulerRot::YXZ);
-    // Track whether any WASD event occurred
-    let mut did_move = false;
+    let cam_forward = cam_tf.forward();
+    let cam_forward = Vec3::new(cam_forward.x, 0.0, cam_forward.z)
+        .normalize_or_zero();
+    let cam_right = cam_forward.cross(Vec3::Y).normalize_or_zero();
 
     for event in reader.read() {
         match event {
-            MovementAction::Move { dir, sprint } => {
-                // skip zero input
-                if *dir == Vector2::ZERO {
-                    continue;
-                }
-                did_move = true;
+            MovementAction::Move { dir, sprint }
+                if *dir != Vector2::ZERO =>
+            {
+                // Compute yaw directly from that vector: atan2(x, z)
+                let world_move =
+                    (cam_forward * dir.y) + (cam_right * dir.x);
+                let world_move = world_move.normalize_or_zero();
 
-                // Compute input angle: atan2(right, forward)
-                let input_angle = f32::atan2(-dir.x, dir.y);
+                // Compute yaw and apply offset based on model orientation
+                let yaw = f32::atan2(world_move.x, world_move.z);
+                // The model is rotated 90 degrees (Facing -X)
+                let offset = std::f32::consts::PI / 2.0;
 
-                // Final yaw = camera_yaw + input_angle
-                let yaw = cam_yaw + input_angle;
+                for (mut ctl, mut tx) in query.iter_mut() {
+                    // Rotate to face movement direction
+                    tx.rotation = Quat::from_rotation_y(yaw + offset);
 
-                for (acc, _jump, mut vel, _gd, mut tx) in
-                    query.iter_mut()
-                {
-                    // Rotate the cube to face yaw
-                    tx.rotation = Quat::from_rotation_y(yaw);
-
-                    // Move along its local -Z
-                    let forward = tx
-                        .rotation
-                        .mul_vec3(Vec3::NEG_Z)
-                        .normalize_or_zero();
-
-                    // Sprint factor
-                    let sprint_factor =
-                        if *sprint { 2.0 } else { 1.0 };
-
-                    // Apply acceleration
-                    vel.0 += forward * (acc.0 * dt * sprint_factor);
+                    // Apply acceleration * sprint factor
+                    let factor = if *sprint { 2.0 } else { 1.0 };
+                    let acceleration = ctl.acceleration;
+                    ctl.velocity +=
+                        world_move * (acceleration * dt * factor);
 
                     // Clamp horizontal speed
                     let max_speed =
                         if *sprint { max_sprint } else { max_walk };
-                    let horiz = Vec2::new(vel.0.x, vel.0.z);
+                    let horiz =
+                        Vec2::new(ctl.velocity.x, ctl.velocity.z);
                     if horiz.length() > max_speed {
                         let clamped = horiz.normalize() * max_speed;
-                        vel.0.x = clamped.x;
-                        vel.0.z = clamped.y;
+                        ctl.velocity.x = clamped.x;
+                        ctl.velocity.z = clamped.y;
                     }
                 }
             }
             MovementAction::Jump => {
-                for (_acc, jump, mut vel, grounded, _tx) in
-                    query.iter_mut()
-                {
-                    if grounded.is_some() {
-                        vel.0.y = jump.0;
+                for (mut ctl, _) in query.iter_mut() {
+                    if ctl.grounded {
+                        ctl.velocity.y = ctl.jump_impulse;
+                        ctl.grounded = false;
                     }
                 }
             }
+            _ => {}
         }
     }
 
-    // If no movement this frame, face camera yaw
-    if !did_move {
-        let cam_quat = Quat::from_rotation_y(cam_yaw);
-        for (_acc, _j, _vel, _gd, mut tx) in query.iter_mut() {
-            tx.rotation = cam_quat;
-        }
+    // Translation
+    for (ctl, mut tx) in query.iter_mut() {
+        tx.translation += ctl.velocity * dt;
     }
 }
 
 /// Applies damping to horizontal movement
 fn apply_movement_damping(
-    mut query: Query<(&MovementDampingFactor, &mut LinearVelocity)>,
+    mut query: Query<&mut CharacterController>,
 ) {
-    for (damp, mut vel) in query.iter_mut() {
-        vel.x *= damp.0;
-        vel.z *= damp.0;
+    for mut ctl in query.iter_mut() {
+        ctl.velocity.x *= ctl.damping;
+        ctl.velocity.z *= ctl.damping;
     }
 }
 
@@ -347,12 +208,10 @@ fn kinematic_controller_collisions(
     collisions: Collisions,
     bodies: Query<&RigidBody>,
     colliders: Query<&ColliderOf>,
-    mut query: Query<
-        (&mut Position, &mut LinearVelocity, Option<&MaxSlopeAngle>),
-        With<CharacterController>,
-    >,
+    mut query: Query<(&mut Position, &mut CharacterController)>,
 ) {
     for contacts in collisions.iter() {
+        // Find the two bodies involved
         let Ok(
             [&ColliderOf { body: rb1 }, &ColliderOf { body: rb2 }],
         ) = colliders
@@ -361,7 +220,7 @@ fn kinematic_controller_collisions(
             continue;
         };
 
-        // Determine which entity is the character controller
+        // Figure out which one is our controller
         let (controller_entity, controller_is_first) =
             if query.contains(rb1) {
                 (rb1, true)
@@ -371,61 +230,51 @@ fn kinematic_controller_collisions(
                 continue;
             };
 
-        // Only handle kinematic bodies against static geometry
+        // Only handle kinematic controllers
         if !bodies.get(controller_entity).unwrap().is_kinematic() {
             continue;
         }
 
-        // Get mutable references to position and velocity
-        let (mut pos, mut vel, _slope) =
+        // Grab the position and our merged CharacterController
+        let (mut pos, mut ctl) =
             query.get_mut(controller_entity).unwrap();
 
-        for manifold in contacts.manifolds.iter() {
-            // Make sure normal points toward the character if it's the second collider
+        for manifold in &contacts.manifolds {
+            // Ensure the normal always points into the controller
             let normal = if controller_is_first {
                 manifold.normal
             } else {
                 -manifold.normal
             };
 
-            // Calculate total penetration to resolve
-            let mut max_pen = 0.0;
-            for point in manifold.points.iter() {
-                if point.penetration > max_pen {
-                    max_pen = point.penetration;
-                }
-            }
+            // Find the deepest penetration
+            let max_pen = manifold
+                .points
+                .iter()
+                .map(|pt| pt.penetration)
+                .fold(0.0, f32::max);
 
             if max_pen > 0.0 {
-                // Apply resolution with a small buffer to prevent oscillation
-                let resolution_vector = normal * (max_pen + 0.001);
-                pos.0 += resolution_vector;
+                // Resolve penetration
+                pos.0 += normal * (max_pen + 0.001);
 
-                // Determine collision response based on normal direction
-
-                // Floor collision (normal pointing up)
+                // Floor hit? zero downward velocity
                 if normal.y > 0.7 {
-                    // Zero out downward velocity on floor
-                    if vel.y < 0.0 {
-                        vel.y = 0.0;
+                    if ctl.velocity.y < 0.0 {
+                        ctl.velocity.y = 0.0;
                     }
                 }
-                // Ceiling collision (normal pointing down)
+                // Ceiling hit? zero upward velocity
                 else if normal.y < -0.7 {
-                    // Zero out upward velocity on ceiling
-                    if vel.y > 0.0 {
-                        vel.y = 0.0;
+                    if ctl.velocity.y > 0.0 {
+                        ctl.velocity.y = 0.0;
                     }
                 }
-                // Wall collision (normal mostly horizontal)
+                // Wall slide: remove velocity into the wall
                 else {
-                    // Project velocity onto the normal
-                    let vel_into_normal = vel.0.dot(normal);
-
-                    // Only cancel velocity going into the wall
-                    if vel_into_normal < 0.0 {
-                        // Remove velocity component going into the wall
-                        vel.0 -= normal * vel_into_normal;
+                    let into = ctl.velocity.dot(normal);
+                    if into < 0.0 {
+                        ctl.velocity -= normal * into;
                     }
                 }
             }
@@ -443,35 +292,14 @@ pub enum MovementAction {
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
 #[reflect(Component)]
-pub struct CharacterController;
-
-/// Marker for grounded state
-#[derive(Component, Reflect)]
-#[component(storage = "SparseSet")]
-#[reflect(Component)]
-pub struct Grounded;
-
-/// Acceleration magnitude for movement
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct MovementAcceleration(pub Scalar);
-
-/// Damping factor to slow XZ movement
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct MovementDampingFactor(pub Scalar);
-
-/// Impulse strength for jumps
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct JumpImpulse(pub Scalar);
-
-/// Gravity applied to the controller
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct ControllerGravity(pub Vector);
-
-/// Maximum climbable slope angle
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct MaxSlopeAngle(pub Scalar);
+pub struct CharacterController {
+    pub acceleration: Scalar,
+    pub damping: Scalar,
+    pub jump_impulse: Scalar,
+    pub max_slope_angle: Scalar,
+    // Gravity
+    pub gravity: Vector,
+    // State - Compute only
+    pub grounded: bool,
+    pub velocity: Vector,
+}
