@@ -2,11 +2,11 @@ use avian3d::{math::*, prelude::*};
 use bevy::prelude::*;
 
 /// Plugin that sets up kinematic character movement for a red cube prototype
-pub struct MovementPlugin;
+pub(super) struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_character, spawn_plate))
+        app.add_systems(Startup, spawn_test_scene)
             .add_event::<MovementAction>()
             .add_systems(
                 Update,
@@ -24,145 +24,129 @@ impl Plugin for MovementPlugin {
                 kinematic_controller_collisions
                     .in_set(NarrowPhaseSet::Last),
             );
+
+        app.register_type::<CharacterController>()
+            .register_type::<Grounded>()
+            .register_type::<MovementAcceleration>()
+            .register_type::<MovementDampingFactor>()
+            .register_type::<JumpImpulse>()
+            .register_type::<ControllerGravity>()
+            .register_type::<MaxSlopeAngle>();
     }
 }
 
-/// Movement actions triggered by input
-#[derive(Event)]
-pub enum MovementAction {
-    Move { dir: Vector2, sprint: bool },
-    Jump,
-}
+// /// Components for movement parameters
+// #[derive(Bundle)]
+// pub struct MovementBundle {
+//     pub acceleration: MovementAcceleration,
+//     pub damping: MovementDampingFactor,
+//     pub jump_impulse: JumpImpulse,
+//     pub max_slope_angle: MaxSlopeAngle,
+// }
 
-/// Marker for kinematic character bodies
-#[derive(Component)]
-pub struct CharacterController;
+// impl MovementBundle {
+//     pub const fn new(
+//         acc: Scalar,
+//         damp: Scalar,
+//         jump: Scalar,
+//         slope: Scalar,
+//     ) -> Self {
+//         Self {
+//             acceleration: MovementAcceleration(acc),
+//             damping: MovementDampingFactor(damp),
+//             jump_impulse: JumpImpulse(jump),
+//             max_slope_angle: MaxSlopeAngle(slope),
+//         }
+//     }
+// }
 
-/// Marker for grounded state
-#[derive(Component)]
-#[component(storage = "SparseSet")]
-pub struct Grounded;
+// impl Default for MovementBundle {
+//     fn default() -> Self {
+//         Self::new(50.0, 0.9, 4.0, std::f32::consts::PI * 0.45)
+//     }
+// }
 
-/// Acceleration magnitude for movement
-#[derive(Component)]
-pub struct MovementAcceleration(pub Scalar);
+// /// Bundle grouping all necessary character controller components
+// #[derive(Bundle)]
+// pub struct CharacterControllerBundle {
+//     pub controller: CharacterController,
+//     pub body: RigidBody,
+//     pub collider: Collider,
+//     pub ground_caster: ShapeCaster,
+//     pub gravity: ControllerGravity,
+//     pub movement: MovementBundle,
+// }
 
-/// Damping factor to slow XZ movement
-#[derive(Component)]
-pub struct MovementDampingFactor(pub Scalar);
+// impl CharacterControllerBundle {
+//     pub fn new(collider: Collider, gravity: Vector) -> Self {
+//         let mut caster_shape = collider.clone();
+//         caster_shape.set_scale(Vector::new(1.1, 0.5, 1.1), 10);
 
-/// Impulse strength for jumps
-#[derive(Component)]
-pub struct JumpImpulse(pub Scalar);
+//         Self {
+//             controller: CharacterController,
+//             body: RigidBody::Kinematic,
+//             collider,
+//             ground_caster: ShapeCaster::new(
+//                 caster_shape,
+//                 Vector::ZERO,
+//                 Quaternion::default(),
+//                 Dir3::NEG_Y,
+//             )
+//             .with_max_distance(1.5),
+//             gravity: ControllerGravity(gravity),
+//             movement: MovementBundle::default(),
+//         }
+//     }
+// }
 
-/// Gravity applied to the controller
-#[derive(Component)]
-pub struct ControllerGravity(pub Vector);
-
-/// Maximum climbable slope angle
-#[derive(Component)]
-pub struct MaxSlopeAngle(pub Scalar);
-
-/// Components for movement parameters
-#[derive(Bundle)]
-pub struct MovementBundle {
-    pub acceleration: MovementAcceleration,
-    pub damping: MovementDampingFactor,
-    pub jump_impulse: JumpImpulse,
-    pub max_slope_angle: MaxSlopeAngle,
-}
-
-impl MovementBundle {
-    pub const fn new(
-        acc: Scalar,
-        damp: Scalar,
-        jump: Scalar,
-        slope: Scalar,
-    ) -> Self {
-        Self {
-            acceleration: MovementAcceleration(acc),
-            damping: MovementDampingFactor(damp),
-            jump_impulse: JumpImpulse(jump),
-            max_slope_angle: MaxSlopeAngle(slope),
-        }
-    }
-}
-
-impl Default for MovementBundle {
-    fn default() -> Self {
-        Self::new(50.0, 0.9, 4.0, std::f32::consts::PI * 0.45)
-    }
-}
-
-/// Bundle grouping all necessary character controller components
-#[derive(Bundle)]
-pub struct CharacterControllerBundle {
-    pub controller: CharacterController,
-    pub body: RigidBody,
-    pub collider: Collider,
-    pub ground_caster: ShapeCaster,
-    pub gravity: ControllerGravity,
-    pub movement: MovementBundle,
-}
-
-impl CharacterControllerBundle {
-    pub fn new(collider: Collider, gravity: Vector) -> Self {
-        let mut caster_shape = collider.clone();
-        caster_shape.set_scale(Vector::new(1.1, 0.5, 1.1), 10);
-
-        Self {
-            controller: CharacterController,
-            body: RigidBody::Kinematic,
-            collider,
-            ground_caster: ShapeCaster::new(
-                caster_shape,
-                Vector::ZERO,
-                Quaternion::default(),
-                Dir3::NEG_Y,
-            )
-            .with_max_distance(1.5),
-            gravity: ControllerGravity(gravity),
-            movement: MovementBundle::default(),
-        }
-    }
-}
-
-// -- Initialization For Testing (TODO: Move to other place) -----------------------------------------
-
-/// Spawn a simple red cube using the character controller bundle
-fn spawn_character(
+// -- TESTING SCENE ----------------------------------------------------------------
+fn spawn_test_scene(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(255, 0, 0))),
-        Transform::from_xyz(0.0, 2.0, 0.0),
-        CharacterControllerBundle::new(
-            Collider::cuboid(1.0, 1.0, 1.0),
-            Vector::NEG_Y * 9.81,
+    commands.spawn(SceneRoot(
+        asset_server.load(
+            GltfAssetLabel::Scene(0)
+                .from_asset("scenes/movement_test.glb"),
         ),
     ));
 }
+// -- Initialization For Testing (TODO: Move to other place) -----------------------------------------
 
-/// Spawn a static ground plate so the character has something to move on
-fn spawn_plate(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    let mesh = meshes.add(Cuboid::new(100.0, 0.1, 100.0));
-    let material = materials.add(Color::srgb_u8(0, 255, 0));
+/// Spawn a simple red cube using the character controller bundle
+// fn spawn_character(
+//     mut commands: Commands,
+//     mut meshes: ResMut<Assets<Mesh>>,
+//     mut materials: ResMut<Assets<StandardMaterial>>,
+// ) {
+//     commands.spawn((
+//         Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+//         MeshMaterial3d(materials.add(Color::srgb_u8(255, 0, 0))),
+//         Transform::from_xyz(0.0, 2.0, 0.0),
+//         CharacterControllerBundle::new(
+//             Collider::cuboid(1.0, 1.0, 1.0),
+//             Vector::NEG_Y * 9.81,
+//         ),
+//     ));
+// }
 
-    commands.spawn((
-        Mesh3d(mesh),
-        MeshMaterial3d(material),
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        RigidBody::Static,
-        Collider::cuboid(50.0, 2.0, 50.0),
-    ));
-}
+// /// Spawn a static ground plate so the character has something to move on
+// fn spawn_plate(
+//     mut commands: Commands,
+//     mut meshes: ResMut<Assets<Mesh>>,
+//     mut materials: ResMut<Assets<StandardMaterial>>,
+// ) {
+//     let mesh = meshes.add(Cuboid::new(100.0, 0.1, 100.0));
+//     let material = materials.add(Color::srgb_u8(0, 255, 0));
+
+//     commands.spawn((
+//         Mesh3d(mesh),
+//         MeshMaterial3d(material),
+//         Transform::from_xyz(0.0, 0.0, 0.0),
+//         RigidBody::Static,
+//         Collider::cuboid(50.0, 2.0, 50.0),
+//     ));
+// }
 
 // -- Keyboard Input ----------------------------------------------------------------
 
@@ -182,7 +166,6 @@ fn keyboard_input(
     )
     .clamp_length_max(1.0);
 
-    // detect sprint once here
     let sprint = keys.pressed(KeyCode::ShiftLeft)
         || keys.pressed(KeyCode::ShiftRight);
 
@@ -449,3 +432,46 @@ fn kinematic_controller_collisions(
         }
     }
 }
+
+/// Movement actions triggered by input
+#[derive(Event)]
+pub enum MovementAction {
+    Move { dir: Vector2, sprint: bool },
+    Jump,
+}
+
+/// Marker for kinematic character bodies
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct CharacterController;
+
+/// Marker for grounded state
+#[derive(Component, Reflect)]
+#[component(storage = "SparseSet")]
+#[reflect(Component)]
+pub struct Grounded;
+
+/// Acceleration magnitude for movement
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct MovementAcceleration(pub Scalar);
+
+/// Damping factor to slow XZ movement
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct MovementDampingFactor(pub Scalar);
+
+/// Impulse strength for jumps
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct JumpImpulse(pub Scalar);
+
+/// Gravity applied to the controller
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct ControllerGravity(pub Vector);
+
+/// Maximum climbable slope angle
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct MaxSlopeAngle(pub Scalar);
