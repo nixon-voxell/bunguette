@@ -1,7 +1,5 @@
 use avian3d::{math::*, prelude::*};
 use bevy::prelude::*;
-use bevy::render::camera::Camera;
-use bevy::window::{PrimaryWindow, Window};
 
 /// Plugin that sets up kinematic character movement for a red cube prototype
 pub struct MovementPlugin;
@@ -14,7 +12,6 @@ impl Plugin for MovementPlugin {
                 Update,
                 (
                     keyboard_input,
-                    rotate_character_with_mouse,
                     update_grounded,
                     apply_gravity,
                     movement,
@@ -258,39 +255,69 @@ fn apply_gravity(
 fn movement(
     time: Res<Time>,
     mut reader: EventReader<MovementAction>,
+    cam_tf_q: Query<&GlobalTransform, With<Camera3d>>,
     mut query: Query<
         (
             &MovementAcceleration,
             &JumpImpulse,
             &mut LinearVelocity,
             Option<&Grounded>,
-            &Transform,
+            &mut Transform,
         ),
         With<CharacterController>,
     >,
 ) {
     let dt = time.delta_secs_f64().adjust_precision();
+
+    // Speed caps
     let max_walk = 5.0;
     let max_sprint = 10.0;
 
+    // Get camera yaw from its GlobalTransform
+    let cam_tf = match cam_tf_q.single() {
+        Ok(tf) => tf,
+        Err(_) => return,
+    };
+    // Extract yaw (rotation around Y) via Euler YXZ sequence
+    let (cam_yaw, _, _) = cam_tf.rotation().to_euler(EulerRot::YXZ);
+    // Track whether any WASD event occurred
+    let mut did_move = false;
+
     for event in reader.read() {
         match event {
-            MovementAction::Move {
-                dir: input_dir,
-                sprint,
-            } => {
-                let local = Vec3::new(input_dir.x, 0.0, input_dir.y);
-                for (acc, _jump, mut vel, _grounded, tx) in
+            MovementAction::Move { dir, sprint } => {
+                // skip zero input
+                if *dir == Vector2::ZERO {
+                    continue;
+                }
+                did_move = true;
+
+                // Compute input angle: atan2(right, forward)
+                let input_angle = f32::atan2(-dir.x, dir.y);
+
+                // Final yaw = camera_yaw + input_angle
+                let yaw = cam_yaw + input_angle;
+
+                for (acc, _jump, mut vel, _gd, mut tx) in
                     query.iter_mut()
                 {
-                    let world_dir = tx
+                    // Rotate the cube to face yaw
+                    tx.rotation = Quat::from_rotation_y(yaw);
+
+                    // Move along its local -Z
+                    let forward = tx
                         .rotation
-                        .mul_vec3(local)
+                        .mul_vec3(Vec3::NEG_Z)
                         .normalize_or_zero();
+
+                    // Sprint factor
                     let sprint_factor =
                         if *sprint { 2.0 } else { 1.0 };
-                    vel.0 += world_dir * (acc.0 * dt * sprint_factor);
 
+                    // Apply acceleration
+                    vel.0 += forward * (acc.0 * dt * sprint_factor);
+
+                    // Clamp horizontal speed
                     let max_speed =
                         if *sprint { max_sprint } else { max_walk };
                     let horiz = Vec2::new(vel.0.x, vel.0.z);
@@ -310,6 +337,14 @@ fn movement(
                     }
                 }
             }
+        }
+    }
+
+    // If no movement this frame, face camera yaw
+    if !did_move {
+        let cam_quat = Quat::from_rotation_y(cam_yaw);
+        for (_acc, _j, _vel, _gd, mut tx) in query.iter_mut() {
+            tx.rotation = cam_quat;
         }
     }
 }
@@ -412,59 +447,5 @@ fn kinematic_controller_collisions(
                 }
             }
         }
-    }
-}
-
-/// Rotate the controller to face wherever the mouse ray hits y=0
-pub fn rotate_character_with_mouse(
-    // Query the Window component on the one PrimaryWindow entity
-    window_q: Query<&Window, With<PrimaryWindow>>,
-    cam_q: Query<(&Camera, &GlobalTransform), With<Camera3d>>,
-    mut char_q: Query<&mut Transform, With<CharacterController>>,
-) {
-    // Get the single primary window and its cursor position
-    let window = match window_q.single() {
-        Ok(w) => w,
-        Err(_) => return,
-    };
-    let cursor_pos = match window.cursor_position() {
-        Some(pos) => pos,
-        None => return,
-    };
-
-    let (camera, cam_tf) = match cam_q.single() {
-        Ok(pair) => pair,
-        Err(_) => return,
-    };
-
-    // Project screen‐space cursor into a world‐space ray
-    let ray: Ray3d =
-        match camera.viewport_to_world(cam_tf, cursor_pos) {
-            Ok(r) => r,
-            Err(_) => return,
-        };
-
-    // Intersect the ray with the ground plane y = 0
-    let dir_y = ray.direction.y;
-    if dir_y.abs() < f32::EPSILON {
-        // parallel to ground
-        return;
-    }
-    let t = -ray.origin.y / dir_y;
-    if t <= 0.0 {
-        // behind the ray origin
-        return;
-    }
-    let hit = ray.origin + ray.direction * t;
-
-    // Rotate each controller so its +Z points toward the hit
-    for mut tx in &mut char_q {
-        let mut forward_dir = hit - tx.translation;
-        forward_dir.y = 0.0;
-        if forward_dir.length_squared() < 1e-4 {
-            continue;
-        }
-        tx.rotation =
-            Quat::from_rotation_arc(Vec3::Z, forward_dir.normalize());
     }
 }
