@@ -6,6 +6,7 @@ use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
+mod action;
 mod interaction;
 mod movement;
 mod physics;

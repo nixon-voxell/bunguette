@@ -1,5 +1,5 @@
 use avian3d::prelude::*;
-use bevy::color::palettes::tailwind::{EMERALD_500, SKY_300};
+use bevy::color::palettes::tailwind::SKY_300;
 use bevy::prelude::*;
 use bevy_mod_outline::{
     InheritOutline, OutlineMode, OutlineStencil, OutlineVolume,
@@ -8,7 +8,7 @@ use bevy_mod_outline::{
 use crate::physics::GameLayer;
 
 const MARK_COLOR: Color = Color::Srgba(SKY_300);
-const GRABBED_COLOR: Color = Color::Srgba(EMERALD_500);
+// const GRABBED_COLOR: Color = Color::Srgba(EMERALD_500);
 
 pub(super) struct InteractionPlugin;
 
@@ -78,6 +78,11 @@ fn detect_interactables(
         let mut boundary_entities = Vec::new();
 
         for (i, &item_entity) in item_entities.iter().enumerate() {
+            // Ignore self.
+            if item_entity == entity {
+                continue;
+            }
+
             let Ok(item_translation) = q_global_transforms
                 .get(item_entity)
                 .map(|g| g.translation())
@@ -101,7 +106,7 @@ fn detect_interactables(
         // Find the one that is closest to the front of the player
         // for boundary items.
         if boundary_entities.is_empty() == false {
-            let player_forward = player_transform.forward();
+            let player_forward = player_transform.forward().as_vec3();
 
             let mut closest_angle = -1.0;
             closest_idx = 0;
@@ -109,16 +114,14 @@ fn detect_interactables(
             for (i, item_translation) in boundary_entities {
                 let angle = (item_translation - player_translation)
                     .normalize()
-                    .dot(player_forward.as_vec3());
+                    .dot(player_forward);
 
-                if angle < closest_angle {
+                if angle > closest_angle {
                     closest_idx = i;
                     closest_angle = angle;
                 }
             }
         }
-
-        info!("{closest_idx}");
 
         marked_item.0 = Some(item_entities[closest_idx]);
     }
@@ -192,6 +195,7 @@ fn setup_interactable_outline(
 #[reflect(Component)]
 pub struct Interactable;
 
+/// Previously marked item, mostly for ressetting the outline value.
 #[derive(Component, Deref, DerefMut, Default, Debug, Clone, Copy)]
 pub struct PrevMarkedItem(pub Option<Entity>);
 
