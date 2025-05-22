@@ -7,6 +7,7 @@ use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
 mod action;
+mod asset_pipeline;
 mod interaction;
 mod movement;
 mod physics;
