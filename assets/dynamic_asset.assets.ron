@@ -1,0 +1,7 @@
+// Refer to:
+// https://github.com/NiklasEi/bevy_asset_loader/blob/main/bevy_asset_loader/assets/full_dynamic_collection.assets.ron
+({
+    "prefabs": Files (
+        paths: ["prefabs/rotisserie.glb"],
+    ),
+})
