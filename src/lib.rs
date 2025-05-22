@@ -6,7 +6,10 @@ use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
+mod action;
+mod interaction;
 mod movement;
+mod physics;
 mod ui;
 
 pub struct AppPlugin;
@@ -18,11 +21,13 @@ impl Plugin for AppPlugin {
             // PhysicsPickingPlugin,
             PhysicsDebugPlugin::default(),
             bevy_skein::SkeinPlugin::default(),
-            bevy_mod_outline::OutlinePlugin,
             ui::UiPlugin,
+            physics::PhysicsPlugin,
             movement::MovementPlugin,
+            interaction::InteractionPlugin,
         ))
-        .add_systems(Startup, setup_camera_and_environment);
+        .add_systems(Startup, setup_camera_and_environment)
+        .add_observer(setup_directional_light);
 
         #[cfg(feature = "dev")]
         app.add_plugins((
@@ -48,7 +53,7 @@ fn setup_camera_and_environment(
         },
         Tonemapping::BlenderFilmic,
         Bloom::NATURAL,
-        Transform::from_xyz(-3.5, 10.0, 15.0)
+        Transform::from_xyz(-3.5, 10.0, -15.0)
             .looking_at(INITIAL_FOCUS, Vec3::Y),
         DebandDither::Enabled,
         Msaa::Off,
@@ -68,4 +73,14 @@ fn setup_camera_and_environment(
             ..default()
         },
     ));
+}
+
+fn setup_directional_light(
+    trigger: Trigger<OnAdd, DirectionalLight>,
+    mut q_lights: Query<&mut DirectionalLight>,
+) -> Result {
+    let mut light = q_lights.get_mut(trigger.target())?;
+    light.shadows_enabled = true;
+
+    Ok(())
 }
