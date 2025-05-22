@@ -41,6 +41,7 @@ fn spawn_test_scene(
 fn grab_input_system(
     keys: Res<ButtonInput<KeyCode>>,
     marked_q: Query<(Entity, &MarkedItem), With<InteractionPlayer>>,
+    grabbable_q: Query<&Grabbable>,
     mut grab_writer: EventWriter<GrabEvent>,
     mut release_writer: EventWriter<ReleaseEvent>,
     grab_state: Res<GrabState>,
@@ -50,7 +51,10 @@ fn grab_input_system(
             release_writer.write(ReleaseEvent);
         } else if let Ok((_, marked)) = marked_q.single() {
             if let Some(target) = marked.0 {
-                grab_writer.write(GrabEvent(target));
+                if grabbable_q.get(target).is_ok() {
+                    // Send grab event
+                    grab_writer.write(GrabEvent(target));
+                }
             }
         }
     }
