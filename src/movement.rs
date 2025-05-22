@@ -176,15 +176,21 @@ fn movement(
                     // Rotate to face movement direction
                     tx.rotation = Quat::from_rotation_y(yaw + offset);
 
+                    // Only allow sprinting if grounded
+                    let can_sprint = *sprint && ctl.grounded;
+
                     // Apply acceleration * sprint factor
-                    let factor = if *sprint { 2.0 } else { 1.0 };
+                    let factor = if can_sprint { 2.0 } else { 1.0 };
                     let acceleration = ctl.acceleration;
                     linvel.0 +=
                         world_move * (acceleration * dt * factor);
 
-                    // Clamp horizontal speed
-                    let max_speed =
-                        if *sprint { max_sprint } else { max_walk };
+                    // Clamp horizontal speed (only sprint speed if grounded)
+                    let max_speed = if can_sprint {
+                        max_sprint
+                    } else {
+                        max_walk
+                    };
                     let horiz = Vec2::new(linvel.0.x, linvel.0.z);
                     if horiz.length() > max_speed {
                         let clamped = horiz.normalize() * max_speed;
@@ -205,6 +211,18 @@ fn movement(
                 }
             }
             _ => {}
+        }
+    }
+
+    // Clamp horizontal speed for airborne characters every frame
+    for (ctl, _, mut linvel) in query.iter_mut() {
+        if !ctl.grounded {
+            let horiz = Vec2::new(linvel.0.x, linvel.0.z);
+            if horiz.length() > max_walk {
+                let clamped = horiz.normalize() * max_walk;
+                linvel.0.x = clamped.x;
+                linvel.0.z = clamped.y;
+            }
         }
     }
 }
