@@ -284,7 +284,7 @@ fn kinematic_controller_collisions(
 
         // Detect if the other collider is dynamic
         let other_dynamic =
-            bodies.get(other).map_or(false, |rb| rb.is_dynamic());
+            bodies.get(other).is_ok_and(|rb| rb.is_dynamic());
 
         for manifold in &contacts.manifolds {
             let normal = if is_first {
