@@ -30,7 +30,7 @@ impl Plugin for InteractionPlugin {
     }
 }
 
-fn detect_interactables(
+pub fn detect_interactables(
     mut q_players: Query<
         (&InteractionPlayer, &mut MarkedItem, Entity),
         Changed<GlobalTransform>,

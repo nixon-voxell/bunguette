@@ -7,6 +7,7 @@ use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
 mod action;
+mod grab;
 mod interaction;
 mod movement;
 mod physics;
@@ -25,6 +26,7 @@ impl Plugin for AppPlugin {
             physics::PhysicsPlugin,
             movement::MovementPlugin,
             interaction::InteractionPlugin,
+            grab::GrabPlugin,
         ))
         .add_systems(Startup, setup_camera_and_environment)
         .add_observer(setup_directional_light);
