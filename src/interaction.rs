@@ -5,6 +5,7 @@ use bevy_mod_outline::{
     InheritOutline, OutlineMode, OutlineStencil, OutlineVolume,
 };
 
+use crate::grab::Occupied;
 use crate::physics::GameLayer;
 
 const MARK_COLOR: Color = Color::Srgba(SKY_300);
@@ -33,7 +34,7 @@ impl Plugin for InteractionPlugin {
 pub fn detect_interactables(
     mut q_players: Query<
         (&InteractionPlayer, &mut MarkedItem, Entity),
-        Changed<GlobalTransform>,
+        (Changed<GlobalTransform>, Without<Occupied>),
     >,
     q_global_transforms: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
