@@ -10,7 +10,7 @@ impl Plugin for AssetPipelinePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(animation_pipeline::AnimationPipelinePlugin);
 
-        app.init_state::<PrefabState>()
+        app.init_state::<PrefabState>().init_state::<SceneState>()
             .add_loading_state(
                 LoadingState::new(PrefabState::LoadingGltf)
                     .continue_to_state(PrefabState::LoadingAnimation)
@@ -18,20 +18,45 @@ impl Plugin for AssetPipelinePlugin {
                         "dynamic_asset.assets.ron",
                     )
                     .load_collection::<PrefabAssets>(),
-            ).add_systems(OnEnter(PrefabState::LoadingAnimation), test);
+            )
+            .add_loading_state(
+                LoadingState::new(SceneState::LoadingGltf)
+                    .continue_to_state(SceneState::Loaded)
+                    .with_dynamic_assets_file::<StandardDynamicAssetCollection>(
+                        "dynamic_asset.assets.ron",
+                    )
+                    .load_collection::<SceneAssets>(),
+            ).add_systems(OnEnter(SceneState::Loaded), load_default_scene);
 
         #[cfg(feature = "dev")]
         app.register_type::<PrefabAssets>();
     }
 }
 
-fn test(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn load_default_scene(
+    mut commands: Commands,
+    scenes: Res<SceneAssets>,
+    gltfs: Res<Assets<Gltf>>,
+) -> Result {
+    let gltf = gltfs
+        .get(&scenes.default_scene)
+        .ok_or("Scene should have been loaded")?;
+
     commands.spawn(SceneRoot(
-        asset_server.load(
-            GltfAssetLabel::Scene(0)
-                .from_asset("scenes/animation_test.glb"),
-        ),
+        gltf.default_scene
+            .clone()
+            .expect("Should have a default scene."),
     ));
+
+    Ok(())
+}
+
+#[derive(AssetCollection, Resource, Debug)]
+#[cfg_attr(feature = "dev", derive(Reflect))]
+#[cfg_attr(feature = "dev", reflect(Resource))]
+pub struct SceneAssets {
+    #[asset(key = "scenes/default")]
+    pub default_scene: Handle<Gltf>,
 }
 
 #[derive(AssetCollection, Resource, Debug)]
@@ -55,16 +80,17 @@ impl PrefabAssets {
     }
 }
 
+#[derive(Debug)]
 pub enum PrefabName<'a> {
     Absolute(&'a str),
-    FileName(&'a str),
+    _FileName(&'a str),
 }
 
 impl PrefabName<'_> {
     pub fn cast(self) -> String {
         match self {
             PrefabName::Absolute(name) => name.to_string(),
-            PrefabName::FileName(filename) => {
+            PrefabName::_FileName(filename) => {
                 let prefix = "prefabs/".to_string();
                 prefix + filename + ".glb"
             }
@@ -72,29 +98,17 @@ impl PrefabName<'_> {
     }
 }
 
-// fn test(
-//     mut commands: Commands,
-//     prefabs: Res<PrefabAssets>,
-//     gltfs: Res<Assets<Gltf>>,
-// ) -> Result {
-//     let rotisserie =
-//         gltfs.get(&prefabs.rotisserie).ok_or("Should be loaded.")?;
-
-//     commands.spawn((
-//         SceneRoot(rotisserie.default_scene.as_ref().unwrap().clone()),
-//         IsAnimatable,
-//     ));
-
-//     let open_animation =
-//         rotisserie.named_animations.get("Door|Open").unwrap();
-
-//     Ok(())
-// }
-
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
-enum PrefabState {
+pub enum PrefabState {
     #[default]
     LoadingGltf,
     LoadingAnimation,
+    Loaded,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+pub enum SceneState {
+    #[default]
+    LoadingGltf,
     Loaded,
 }
