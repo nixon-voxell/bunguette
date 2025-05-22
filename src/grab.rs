@@ -68,20 +68,12 @@ fn handle_grab(
     player_q: Query<Entity, With<InteractionPlayer>>,
 ) {
     for GrabEvent(entity) in events.read() {
-        if grab_state.held.is_some() {
-            continue;
-        }
-        if let Ok(player) = player_q.single() {
-            // Parent the grabbed item to the interactable player
-            commands.entity(player).add_child(*entity);
-            // Reset local transform so it's positioned relative to parent
-            commands
-                .entity(*entity)
-                .insert(Transform::default())
-                .insert(GlobalTransform::default());
-            // Tag as occupied
-            commands.entity(player).insert(Occupied);
-            grab_state.held = Some(*entity);
+        if grab_state.held.is_none() {
+            if let Ok(player) = player_q.single() {
+                commands.entity(player).add_child(*entity);
+                commands.entity(player).insert(Occupied);
+                grab_state.held = Some(*entity);
+            }
         }
     }
 }
@@ -93,6 +85,7 @@ fn handle_release(
     mut events: EventReader<ReleaseEvent>,
     player_q: Query<Entity, With<InteractionPlayer>>,
     player_tf_q: Query<&GlobalTransform, With<InteractionPlayer>>,
+    mut tf_q: Query<&mut Transform>,
 ) {
     // Release distance from player
     const RELEASE_DISTANCE: f32 = 2.0;
@@ -102,21 +95,13 @@ fn handle_release(
                 commands.entity(player).remove_children(&[entity]);
                 // Clear occupied tag
                 commands.entity(player).remove::<Occupied>();
-                // Determine release position and rotation from player transform
-                if let Ok(player_tf) = player_tf_q.single() {
+                if let (Ok(player_tf), Ok(mut item_tf)) =
+                    (player_tf_q.single(), tf_q.get_mut(entity))
+                {
                     let forward = player_tf.forward();
-                    let release_pos = player_tf.translation()
+                    item_tf.translation = player_tf.translation()
                         + forward * RELEASE_DISTANCE;
-                    let release_rot = player_tf.rotation();
-                    // Place entity at computed world transform
-                    commands
-                        .entity(entity)
-                        .insert(Transform {
-                            translation: release_pos,
-                            rotation: release_rot,
-                            ..Default::default()
-                        })
-                        .insert(GlobalTransform::default());
+                    item_tf.rotation = player_tf.rotation();
                 }
             }
         }
