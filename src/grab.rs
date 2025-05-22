@@ -1,18 +1,15 @@
-use crate::action::PlayerAction;
 use crate::interaction::{
     InteractionPlayer, MarkedItem, detect_interactables,
 };
 use bevy::prelude::*;
 use bevy::reflect::Reflect;
-use leafwing_input_manager::plugin::InputManagerPlugin;
 
 /// Plugin that sets up grabbing logic for interactable items.
 pub(super) struct GrabPlugin;
 
 impl Plugin for GrabPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(InputManagerPlugin::<PlayerAction>::default())
-            .add_systems(Startup, spawn_test_scene)
+        app.add_systems(Startup, spawn_test_scene)
             .init_resource::<GrabState>()
             .add_event::<GrabEvent>()
             .add_event::<ReleaseEvent>()
