@@ -51,16 +51,9 @@ fn grab_input_system(
     if keys.just_pressed(KeyCode::KeyE) {
         if grab_state.held.is_some() {
             release_writer.write(ReleaseEvent);
-        } else if let Ok((player_entity, marked)) = marked_q.single()
-        {
+        } else if let Ok((_, marked)) = marked_q.single() {
             if let Some(target) = marked.0 {
-                info!(
-                    "Player {:?} grabbing entity {:?}",
-                    player_entity, target
-                );
                 grab_writer.write(GrabEvent(target));
-            } else {
-                info!("No interactable item in range to grab");
             }
         }
     }
@@ -92,18 +85,38 @@ fn handle_grab(
     }
 }
 
-/// Detaches the held entity and clears the occupied state on the player.
+/// Detaches the held entity and places it in front of the player.
 fn handle_release(
     mut commands: Commands,
     mut grab_state: ResMut<GrabState>,
     mut events: EventReader<ReleaseEvent>,
     player_q: Query<Entity, With<InteractionPlayer>>,
+    player_tf_q: Query<&GlobalTransform, With<InteractionPlayer>>,
 ) {
+    // Release distance from player
+    const RELEASE_DISTANCE: f32 = 2.0;
     for _ in events.read() {
         if let Some(entity) = grab_state.held.take() {
             if let Ok(player) = player_q.single() {
                 commands.entity(player).remove_children(&[entity]);
+                // Clear occupied tag
                 commands.entity(player).remove::<Occupied>();
+                // Determine release position and rotation from player transform
+                if let Ok(player_tf) = player_tf_q.single() {
+                    let forward = player_tf.forward();
+                    let release_pos = player_tf.translation()
+                        + forward * RELEASE_DISTANCE;
+                    let release_rot = player_tf.rotation();
+                    // Place entity at computed world transform
+                    commands
+                        .entity(entity)
+                        .insert(Transform {
+                            translation: release_pos,
+                            rotation: release_rot,
+                            ..Default::default()
+                        })
+                        .insert(GlobalTransform::default());
+                }
             }
         }
     }
