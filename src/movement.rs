@@ -6,7 +6,8 @@ pub(super) struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_test_scene)
+        app
+            // .add_systems(Startup, spawn_test_scene)
             .add_event::<MovementAction>()
             .add_systems(
                 Update,
@@ -30,17 +31,17 @@ impl Plugin for MovementPlugin {
 }
 
 // -- TESTING SCENE ----------------------------------------------------------------
-fn spawn_test_scene(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-) {
-    commands.spawn(SceneRoot(
-        asset_server.load(
-            GltfAssetLabel::Scene(0)
-                .from_asset("scenes/movement_test.glb"),
-        ),
-    ));
-}
+// fn spawn_test_scene(
+//     mut commands: Commands,
+//     asset_server: Res<AssetServer>,
+// ) {
+//     commands.spawn(SceneRoot(
+//         asset_server.load(
+//             GltfAssetLabel::Scene(0)
+//                 .from_asset("scenes/movement_test.glb"),
+//         ),
+//     ));
+// }
 
 // -- Keyboard Input ----------------------------------------------------------------
 
