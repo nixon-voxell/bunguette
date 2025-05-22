@@ -24,6 +24,7 @@ impl Plugin for AppPlugin {
             bevy_skein::SkeinPlugin::default(),
             ui::UiPlugin,
             physics::PhysicsPlugin,
+            asset_pipeline::AssetPipeline,
             movement::MovementPlugin,
             interaction::InteractionPlugin,
         ))
