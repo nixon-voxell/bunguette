@@ -113,18 +113,12 @@ fn handle_release(
 fn update_snapping(
     grab_state: Res<GrabState>,
     mut tf_q: Query<&mut Transform>,
-    player_tf_q: Query<&GlobalTransform, With<InteractionPlayer>>,
 ) {
     if let Some(entity) = grab_state.held {
-        if let (Ok(mut item_tf), Ok(player_tf)) =
-            (tf_q.get_mut(entity), player_tf_q.single())
-        {
-            // Position the held item above the player
-            let up: Vec3 = Vec3::Y;
-            let height_offset = 1.0;
+        if let Ok(mut item_tf) = tf_q.get_mut(entity) {
+            const HEIGHT_OFFSET: f32 = 1.5;
             // Place item at player's head height
-            item_tf.translation =
-                player_tf.translation() + up * height_offset;
+            item_tf.translation = Vec3::Y * HEIGHT_OFFSET;
 
             // Rotate the held item to match the player's rotation
             item_tf.rotation = Quat::IDENTITY;
