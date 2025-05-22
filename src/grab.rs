@@ -76,7 +76,7 @@ fn handle_grab(
                 .insert(Transform::default())
                 .insert(GlobalTransform::default());
             // Tag as occupied
-            commands.entity(player).insert(Occupied::default());
+            commands.entity(player).insert(Occupied);
             grab_state.held = Some(*entity);
         }
     }
