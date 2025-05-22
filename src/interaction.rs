@@ -16,7 +16,7 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(bevy_mod_outline::OutlinePlugin);
 
-        app.add_systems(Startup, spawn_test_scene).add_systems(
+        app.add_systems(
             Update,
             (
                 setup_interactable_outline,
@@ -24,23 +24,10 @@ impl Plugin for InteractionPlugin {
                 mark_item,
             ),
         );
-        // .add_observer(setup_interaction_player);
 
         app.register_type::<Interactable>()
             .register_type::<InteractionPlayer>();
     }
-}
-
-fn spawn_test_scene(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-) {
-    commands.spawn(SceneRoot(
-        asset_server.load(
-            GltfAssetLabel::Scene(0)
-                .from_asset("scenes/interaction_test.glb"),
-        ),
-    ));
 }
 
 fn detect_interactables(
