@@ -182,9 +182,7 @@ fn setup_interactable_outline(
             ));
 
             for child in q_children.iter_descendants(entity) {
-                if q_meshes.contains(child) {
-                    commands.entity(child).insert(InheritOutline);
-                }
+                commands.entity(child).insert(InheritOutline);
             }
         }
     }
