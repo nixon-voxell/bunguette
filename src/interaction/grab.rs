@@ -40,7 +40,7 @@ fn grab_input_system(
         // Handle input for each player separately
         for (player_entity, marked, grab_state) in q_players.iter() {
             let currently_holding =
-                grab_state.map_or(false, |gs| gs.held.is_some());
+                grab_state.is_some_and(|gs| gs.held.is_some());
 
             if currently_holding {
                 commands.trigger_targets(
