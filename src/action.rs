@@ -37,6 +37,7 @@ pub enum PlayerAction {
     Move,
     #[actionlike(DualAxis)]
     Aim,
+    Jump,
     Interact,
     Attack,
 }
@@ -48,6 +49,7 @@ impl PlayerAction {
             // Gamepad input bindings.
             .with_dual_axis(Self::Move, GamepadStick::LEFT)
             .with_dual_axis(Self::Aim, GamepadStick::RIGHT)
+            .with(Self::Jump, GamepadButton::South)
             .with(Self::Interact, GamepadButton::West)
             .with(Self::Attack, GamepadButton::RightTrigger2)
     }
@@ -58,6 +60,7 @@ impl PlayerAction {
             // KbM input bindings.
             .with_dual_axis(Self::Move, VirtualDPad::wasd())
             .with_dual_axis(Self::Aim, MouseMove::default())
+            .with(Self::Jump, KeyCode::Space)
             .with(Self::Interact, KeyCode::KeyE)
             .with(Self::Attack, MouseButton::Left)
     }

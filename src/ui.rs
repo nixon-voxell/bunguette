@@ -78,5 +78,5 @@ pub enum Screen {
     #[default]
     Menu,
     LevelSelection,
-    EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
+    _EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
 }
