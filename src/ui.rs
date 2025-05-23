@@ -52,14 +52,19 @@ fn setup_menu(mut commands: Commands) {
                     parent
                         .spawn(LabelButton::new("Play!").build())
                         .observe(play_on_click);
+
+                    // Only add exit button for non-web game.
+                    #[cfg(not(target_arch = "wasm32"))]
+                    parent
+                        .spawn(
+                            LabelButton::new("Exit...")
+                                .with_bacground(
+                                    ButtonBackground::new(RED_500),
+                                )
+                                .build(),
+                        )
+                        .observe(exit_on_click);
                 }),
-                Spawn(
-                    LabelButton::new("Exit...")
-                        .with_bacground(ButtonBackground::new(
-                            RED_500,
-                        ))
-                        .build(),
-                ),
             )),
         ))),
     ));
@@ -70,6 +75,14 @@ fn play_on_click(
     mut screen: ResMut<NextState<Screen>>,
 ) {
     screen.set(Screen::LevelSelection);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn exit_on_click(
+    _: Trigger<Pointer<Click>>,
+    mut exit: EventWriter<AppExit>,
+) {
+    exit.write(AppExit::Success);
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]

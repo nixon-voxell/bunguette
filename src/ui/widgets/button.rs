@@ -185,6 +185,6 @@ impl ButtonBackground {
 
 impl Default for ButtonBackground {
     fn default() -> Self {
-        ButtonBackground::new(TEAL_200)
+        ButtonBackground::new(TEAL_500)
     }
 }
