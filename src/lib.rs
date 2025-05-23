@@ -15,10 +15,13 @@ pub struct AppPlugin;
 impl Plugin for AppPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
+            bevy_framepace::FramepacePlugin,
+            bevy_skein::SkeinPlugin::default(),
             PhysicsPlugins::default(),
             // PhysicsPickingPlugin,
             PhysicsDebugPlugin::default(),
-            bevy_skein::SkeinPlugin::default(),
+        ))
+        .add_plugins((
             action::ActionPlugin,
             ui::UiPlugin,
             physics::PhysicsPlugin,
