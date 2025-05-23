@@ -11,16 +11,15 @@ pub(super) struct GrabPlugin;
 
 impl Plugin for GrabPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<GrabState>()
-            .add_systems(
-                Update,
-                (
-                    grab_input_system.after(detect_interactables),
-                    update_snapping,
-                ),
-            )
-            .add_observer(handle_grab)
-            .add_observer(handle_release);
+        app.add_systems(
+            Update,
+            (
+                grab_input_system.after(detect_interactables),
+                update_snapping,
+            ),
+        )
+        .add_observer(handle_grab)
+        .add_observer(handle_release);
         app.register_type::<Grabbable>().register_type::<Occupied>();
     }
 }
@@ -30,18 +29,34 @@ impl Plugin for GrabPlugin {
 fn grab_input_system(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    q_marked: Query<(Entity, &MarkedItem), With<InteractionPlayer>>,
+    q_players: Query<
+        (Entity, &MarkedItem, Option<&GrabState>),
+        With<InteractionPlayer>,
+    >,
     q_grabbable: Query<&Grabbable>,
-    grab_state: Res<GrabState>,
 ) {
     if keys.just_pressed(KeyCode::KeyE) {
-        if grab_state.held.is_some() {
-            commands.trigger(ReleaseEvent);
-        } else if let Ok((_, marked)) = q_marked.single() {
-            if let Some(target) = marked.0 {
+        // Handle input for each player separately
+        for (player_entity, marked, grab_state) in q_players.iter() {
+            let currently_holding =
+                grab_state.map_or(false, |gs| gs.held.is_some());
+
+            if currently_holding {
+                commands.trigger_targets(
+                    ReleaseEvent {
+                        player: player_entity,
+                    },
+                    player_entity,
+                );
+            } else if let Some(target) = marked.0 {
                 if q_grabbable.get(target).is_ok() {
-                    // Send grab event
-                    commands.trigger(GrabEvent(target));
+                    commands.trigger_targets(
+                        GrabEvent {
+                            target,
+                            player: player_entity,
+                        },
+                        player_entity,
+                    );
                 }
             }
         }
@@ -52,44 +67,67 @@ fn grab_input_system(
 fn handle_grab(
     trigger: Trigger<GrabEvent>,
     mut commands: Commands,
-    mut grab_state: ResMut<GrabState>,
-    player_q: Query<Entity, With<InteractionPlayer>>,
+    q_grab_state: Query<&GrabState>,
 ) {
     let grab_event = trigger.event();
-    let entity = grab_event.0;
+    let player_entity = grab_event.player;
+    let target_entity = grab_event.target;
 
-    if grab_state.held.is_none() {
-        if let Ok(player) = player_q.single() {
-            commands
-                .entity(player)
-                .add_child(entity)
-                .insert(Occupied)
-                .insert(RigidBodyDisabled);
-            grab_state.held = Some(entity);
-        }
+    // Check if this player is already holding something
+    let already_holding = q_grab_state
+        .get(player_entity)
+        .map_or(false, |grab_state| grab_state.held.is_some());
+
+    if !already_holding {
+        commands
+            .entity(player_entity)
+            .add_child(target_entity)
+            .insert(Occupied)
+            .insert(GrabState {
+                held: Some(target_entity),
+            });
+
+        // Disable physics on the grabbed item
+        commands.entity(target_entity).insert(RigidBodyDisabled);
     }
 }
 
-/// Detaches the held entity and places it in front of the player.
+/// Detaches the held entity from the specific player and places it in front of them
 fn handle_release(
-    _trigger: Trigger<ReleaseEvent>,
+    trigger: Trigger<ReleaseEvent>,
     mut commands: Commands,
-    mut grab_state: ResMut<GrabState>,
-    q_player: Query<Entity, With<InteractionPlayer>>,
     q_player_tf: Query<&GlobalTransform, With<InteractionPlayer>>,
+    q_grab_state: Query<&GrabState>,
     mut q_tf: Query<&mut Transform>,
 ) {
-    // Release distance from player
     const RELEASE_DISTANCE: f32 = 2.0;
 
-    if let Some(entity) = grab_state.held.take() {
-        if let Ok(player) = q_player.single() {
-            commands.entity(player).remove_children(&[entity]);
-            // Clear occupied tag
-            commands.entity(player).remove::<Occupied>();
-            if let (Ok(player_tf), Ok(mut item_tf)) =
-                (q_player_tf.single(), q_tf.get_mut(entity))
-            {
+    let player_entity = trigger.event().player;
+
+    // Get the player's current grab state
+    if let Ok(grab_state) = q_grab_state.get(player_entity) {
+        if let Some(held_entity) = grab_state.held {
+            // Remove child relationship
+            commands
+                .entity(player_entity)
+                .remove_children(&[held_entity]);
+
+            // Clear player state
+            commands
+                .entity(player_entity)
+                .remove::<Occupied>()
+                .remove::<GrabState>();
+
+            // Re-enable physics on the released item
+            commands
+                .entity(held_entity)
+                .remove::<RigidBodyDisabled>();
+
+            // Position the released item in front of the player
+            if let (Ok(player_tf), Ok(mut item_tf)) = (
+                q_player_tf.get(player_entity),
+                q_tf.get_mut(held_entity),
+            ) {
                 let forward = player_tf.forward();
                 item_tf.translation = player_tf.translation()
                     + forward * RELEASE_DISTANCE;
@@ -101,17 +139,18 @@ fn handle_release(
 
 /// Ensure the held entity stays snapped on top of the player.
 fn update_snapping(
-    grab_state: Res<GrabState>,
+    q_players: Query<(Entity, &GrabState), With<InteractionPlayer>>,
     mut q_tf: Query<&mut Transform>,
 ) {
-    if let Some(entity) = grab_state.held {
-        if let Ok(mut item_tf) = q_tf.get_mut(entity) {
-            const HEIGHT_OFFSET: f32 = 1.5;
-            // Place item at player's head height
-            item_tf.translation = Vec3::Y * HEIGHT_OFFSET;
+    const HEIGHT_OFFSET: f32 = 1.5;
 
-            // Rotate the held item to match the player's rotation
-            item_tf.rotation = Quat::IDENTITY;
+    for (_player_entity, grab_state) in q_players.iter() {
+        if let Some(held_entity) = grab_state.held {
+            if let Ok(mut item_tf) = q_tf.get_mut(held_entity) {
+                // Place item at player's head height
+                item_tf.translation = Vec3::Y * HEIGHT_OFFSET;
+                item_tf.rotation = Quat::IDENTITY;
+            }
         }
     }
 }
@@ -122,15 +161,20 @@ fn update_snapping(
 pub struct Grabbable;
 
 /// Tracks the currently held entity if any.
-#[derive(Resource, Default)]
+#[derive(Component, Default)]
 pub struct GrabState {
     pub held: Option<Entity>,
 }
 
-/// Event to request grabbing a specified entity.
+/// Event to request grabbing a specified entity by a specific player
 #[derive(Event)]
-pub struct GrabEvent(pub Entity);
+pub struct GrabEvent {
+    pub target: Entity,
+    pub player: Entity,
+}
 
-/// Event to request releasing the currently held entity.
+/// Event to request releasing the currently held entity from a specific player
 #[derive(Event)]
-pub struct ReleaseEvent;
+pub struct ReleaseEvent {
+    pub player: Entity,
+}
