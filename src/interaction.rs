@@ -4,8 +4,10 @@ use bevy::prelude::*;
 use bevy_mod_outline::{
     InheritOutline, OutlineMode, OutlineStencil, OutlineVolume,
 };
+use grab::Occupied;
 
-use crate::grab::Occupied;
+mod grab;
+
 use crate::physics::GameLayer;
 
 const MARK_COLOR: Color = Color::Srgba(SKY_300);
@@ -15,7 +17,10 @@ pub(super) struct InteractionPlugin;
 
 impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(bevy_mod_outline::OutlinePlugin);
+        app.add_plugins((
+            bevy_mod_outline::OutlinePlugin,
+            grab::GrabPlugin,
+        ));
 
         app.add_systems(
             Update,
@@ -38,11 +43,12 @@ pub fn detect_interactables(
     >,
     q_global_transforms: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
-) {
+) -> Result {
     for (player, mut marked_item, entity) in q_players.iter_mut() {
-        let player_transform = q_global_transforms
-            .get(entity)
-            .expect("Player should have a global transform!");
+        let player_transform =
+            q_global_transforms.get(entity).map_err(|_|
+                "`InteractionPlayer` should have a global transform!",
+            )?;
 
         let player_translation = player_transform.translation();
 
@@ -113,6 +119,8 @@ pub fn detect_interactables(
 
         marked_item.0 = Some(item_entities[closest_idx]);
     }
+
+    Ok(())
 }
 
 fn mark_item(

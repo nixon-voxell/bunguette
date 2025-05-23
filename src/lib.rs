@@ -8,7 +8,6 @@ use bevy::prelude::*;
 
 mod action;
 mod asset_pipeline;
-mod grab;
 mod interaction;
 mod movement;
 mod physics;
@@ -28,7 +27,6 @@ impl Plugin for AppPlugin {
             asset_pipeline::AssetPipelinePlugin,
             movement::MovementPlugin,
             interaction::InteractionPlugin,
-            grab::GrabPlugin,
         ))
         .add_systems(Startup, setup_camera_and_environment)
         .add_observer(setup_directional_light);
