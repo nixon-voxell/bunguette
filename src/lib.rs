@@ -8,8 +8,8 @@ use bevy::prelude::*;
 
 mod action;
 mod asset_pipeline;
+mod character_controller;
 mod interaction;
-mod movement;
 mod physics;
 mod ui;
 
@@ -25,7 +25,7 @@ impl Plugin for AppPlugin {
             ui::UiPlugin,
             physics::PhysicsPlugin,
             asset_pipeline::AssetPipelinePlugin,
-            movement::MovementPlugin,
+            character_controller::MovementPlugin,
             interaction::InteractionPlugin,
         ))
         .add_systems(Startup, setup_camera_and_environment)
