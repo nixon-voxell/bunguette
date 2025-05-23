@@ -4,7 +4,6 @@ use bevy::prelude::*;
 use bevy_mod_outline::{
     InheritOutline, OutlineMode, OutlineStencil, OutlineVolume,
 };
-use grab::Occupied;
 
 mod grab;
 
@@ -36,7 +35,7 @@ impl Plugin for InteractionPlugin {
     }
 }
 
-pub fn detect_interactables(
+fn detect_interactables(
     mut q_players: Query<
         (&InteractionPlayer, &mut MarkedItem, Entity),
         (Changed<GlobalTransform>, Without<Occupied>),
@@ -217,3 +216,8 @@ pub struct TestBundle {
     pub transform: Transform,
     pub visibility: Visibility,
 }
+
+/// Tags the player as occupied when holding an item.
+#[derive(Component, Reflect, Default)]
+#[reflect(Component)]
+pub struct Occupied;
