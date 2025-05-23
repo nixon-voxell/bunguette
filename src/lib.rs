@@ -7,6 +7,7 @@ use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
 mod action;
+mod asset_pipeline;
 mod grab;
 mod interaction;
 mod movement;
@@ -24,6 +25,7 @@ impl Plugin for AppPlugin {
             bevy_skein::SkeinPlugin::default(),
             ui::UiPlugin,
             physics::PhysicsPlugin,
+            asset_pipeline::AssetPipelinePlugin,
             movement::MovementPlugin,
             interaction::InteractionPlugin,
             grab::GrabPlugin,

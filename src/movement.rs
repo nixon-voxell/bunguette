@@ -168,14 +168,12 @@ fn movement(
                 let world_move = world_move.normalize_or_zero();
 
                 // Compute yaw and apply offset based on model orientation
-                let yaw = f32::atan2(world_move.x, world_move.z);
-                // The model is rotated 90 degrees (Facing -X)
-                let offset = std::f32::consts::PI / 2.0;
+                let yaw = f32::atan2(-world_move.x, -world_move.z);
 
                 for (mut ctl, mut tx, mut linvel) in query.iter_mut()
                 {
                     // Rotate to face movement direction
-                    tx.rotation = Quat::from_rotation_y(yaw + offset);
+                    tx.rotation = Quat::from_rotation_y(yaw);
 
                     // Only allow sprinting if grounded
                     let can_sprint = *sprint && ctl.grounded;
