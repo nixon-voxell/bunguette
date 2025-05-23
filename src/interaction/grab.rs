@@ -20,6 +20,7 @@ impl Plugin for GrabPlugin {
         )
         .add_observer(handle_grab)
         .add_observer(handle_release);
+
         app.register_type::<Grabbable>().register_type::<Occupied>();
     }
 }
@@ -76,7 +77,7 @@ fn handle_grab(
     // Check if this player is already holding something
     let already_holding = q_grab_state
         .get(player_entity)
-        .map_or(false, |grab_state| grab_state.held.is_some());
+        .is_ok_and(|grab_state| grab_state.held.is_some());
 
     if !already_holding {
         commands
