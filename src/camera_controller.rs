@@ -5,6 +5,8 @@ use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::pbr::ScreenSpaceAmbientOcclusion;
 use bevy::prelude::*;
 
+use crate::ui::world_space::WorldSpaceUiCamera;
+
 pub(super) struct CameraControllerPlugin;
 
 impl Plugin for CameraControllerPlugin {
@@ -34,18 +36,14 @@ fn setup_game_camera_and_environment(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
-    const INITIAL_FOCUS: Vec3 = Vec3::new(0.0, 3.0, 0.0);
-
     commands.spawn((
         Camera3d::default(),
         Camera {
             hdr: true,
             ..default()
         },
-        Tonemapping::AcesFitted,
+        Tonemapping::None,
         Bloom::NATURAL,
-        Transform::from_xyz(-3.5, 10.0, -15.0)
-            .looking_at(INITIAL_FOCUS, Vec3::Y),
         DebandDither::Enabled,
         Msaa::Off,
         ScreenSpaceAmbientOcclusion::default(),
@@ -64,6 +62,7 @@ fn setup_game_camera_and_environment(
             ..default()
         },
         GameCamera,
+        WorldSpaceUiCamera,
     ));
 }
 

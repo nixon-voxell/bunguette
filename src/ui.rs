@@ -4,13 +4,17 @@ use bevy::ui::FocusPolicy;
 use bevy::{color::palettes::tailwind::*, ecs::spawn::SpawnWith};
 use widgets::button::{ButtonBackground, LabelButton};
 
-mod widgets;
+pub mod widgets;
+pub mod world_space;
 
 pub(super) struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(widgets::WidgetsPlugin);
+        app.add_plugins((
+            world_space::WorldSpaceUiPlugin,
+            widgets::WidgetsPlugin,
+        ));
 
         app.add_systems(Startup, setup_menu);
 
@@ -50,14 +54,20 @@ fn setup_menu(mut commands: Commands) {
                 )),
                 SpawnWith(|parent: &mut RelatedSpawner<ChildOf>| {
                     parent
-                        .spawn(LabelButton::new("Play!").build())
+                        .spawn(
+                            LabelButton::new("Play!")
+                                .with_bacground(
+                                    ButtonBackground::new(SKY_500),
+                                )
+                                .build(),
+                        )
                         .observe(play_on_click);
 
                     // Only add exit button for non-web game.
                     #[cfg(not(target_arch = "wasm32"))]
                     parent
                         .spawn(
-                            LabelButton::new("Exit...")
+                            LabelButton::new("Exit..")
                                 .with_bacground(
                                     ButtonBackground::new(RED_500),
                                 )
