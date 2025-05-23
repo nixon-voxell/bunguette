@@ -8,6 +8,6 @@
     ),
 
     "scenes/default": File (
-        path: "scenes/animation_test.glb",
+        path: "scenes/grab_test.glb",
     ),
 })
