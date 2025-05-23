@@ -26,3 +26,9 @@ fn setup_ui(mut commands: Commands) {
         )],
     ));
 }
+
+pub enum Screen {
+    Menu,
+    InputPairing,
+    EnterLevel,
+}
