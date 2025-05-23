@@ -1,7 +1,8 @@
-use bevy::color::palettes::tailwind::{TEAL_100, TEAL_300};
+use bevy::ecs::relationship::RelatedSpawner;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
-use widgets::*;
+use bevy::{color::palettes::tailwind::*, ecs::spawn::SpawnWith};
+use widgets::button::{ButtonBackground, LabelButton};
 
 mod widgets;
 
@@ -19,6 +20,7 @@ impl Plugin for UiPlugin {
 
 fn setup_menu(mut commands: Commands) {
     commands.spawn((
+        StateScoped(Screen::Menu),
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
@@ -31,9 +33,7 @@ fn setup_menu(mut commands: Commands) {
         Pickable::IGNORE,
         Children::spawn(Spawn((
             Node {
-                width: Val::VMin(40.0),
-                height: Val::VMin(60.0),
-                // padding: UiRect::all(Val::VMin())
+                padding: UiRect::all(Val::VMin(6.0)),
                 justify_content: JustifyContent::SpaceAround,
                 align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Column,
@@ -41,26 +41,42 @@ fn setup_menu(mut commands: Commands) {
             },
             BackgroundColor(Color::BLACK.with_alpha(0.2)),
             BorderRadius::all(Val::VMin(4.0)),
-            Children::spawn(Spawn((
-                Node {
-                    width: Val::VMin(16.0),
-                    height: Val::VMin(9.0),
-                    ..default()
-                },
-                HoverBackground {
-                    over: TEAL_100.into(),
-                    out: TEAL_300.into(),
-                },
-                Button,
-            ))),
+            Children::spawn((
+                Spawn((
+                    Text::new("Recipe"),
+                    TextFont::from_font_size(64.0),
+                    TextColor(ORANGE_600.into()),
+                    TextShadow::default(),
+                )),
+                SpawnWith(|parent: &mut RelatedSpawner<ChildOf>| {
+                    parent
+                        .spawn(LabelButton::new("Play!").build())
+                        .observe(play_on_click);
+                }),
+                Spawn(
+                    LabelButton::new("Exit...")
+                        .with_bacground(ButtonBackground::new(
+                            RED_500,
+                        ))
+                        .build(),
+                ),
+            )),
         ))),
     ));
 }
 
+fn play_on_click(
+    _: Trigger<Pointer<Click>>,
+    mut screen: ResMut<NextState<Screen>>,
+) {
+    screen.set(Screen::LevelSelection);
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+#[states(scoped_entities)]
 pub enum Screen {
     #[default]
     Menu,
-    InputPairing,
-    EnterLevel,
+    LevelSelection,
+    EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
 }
