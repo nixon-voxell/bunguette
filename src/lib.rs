@@ -12,6 +12,7 @@ mod interaction;
 mod movement;
 mod physics;
 mod ui;
+mod inventory;
 
 pub struct AppPlugin;
 
@@ -27,6 +28,7 @@ impl Plugin for AppPlugin {
             asset_pipeline::AssetPipelinePlugin,
             movement::MovementPlugin,
             interaction::InteractionPlugin,
+            inventory::InventoryPlugin,
         ))
         .add_systems(Startup, setup_camera_and_environment)
         .add_observer(setup_directional_light);
