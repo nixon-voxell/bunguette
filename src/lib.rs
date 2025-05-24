@@ -9,10 +9,10 @@ use bevy::prelude::*;
 mod action;
 mod asset_pipeline;
 mod interaction;
+mod inventory;
 mod movement;
 mod physics;
 mod ui;
-mod inventory;
 
 pub struct AppPlugin;
 

@@ -1,6 +1,6 @@
 use super::{
-    Consumable, ConsumeEvent, DropEvent, Inventory, PickupEvent,
-    Pickupable,
+    Consumable, ConsumeEvent, DropEvent, Inventory, Item,
+    ItemRegistry, PickupEvent, Pickupable,
 };
 use crate::interaction::{InteractionPlayer, MarkedItem};
 use bevy::prelude::*;
@@ -95,7 +95,8 @@ fn debug_inventory_system(
     keys: Res<ButtonInput<KeyCode>>,
     q_players: Query<Entity, With<InteractionPlayer>>,
     q_inventories: Query<&Inventory>,
-    q_items: Query<&crate::inventory::Item>,
+    q_items: Query<&Item>,
+    item_registry: Res<ItemRegistry>,
 ) {
     if keys.just_pressed(KeyCode::KeyI) {
         for player_entity in q_players.iter() {
@@ -108,11 +109,17 @@ fn debug_inventory_system(
                         inventory.0.iter().enumerate()
                     {
                         if let Ok(item) = q_items.get(item_entity) {
+                            let item_name = item_registry
+                                .by_id
+                                .get(&item.id)
+                                .map(|meta| meta.name.as_str())
+                                .unwrap_or("Unknown Item");
+
                             info!(
                                 "  {}: {}x {} (id: {})",
                                 i + 1,
                                 item.quantity,
-                                item.name,
+                                item_name,
                                 item.id
                             );
                         } else {
