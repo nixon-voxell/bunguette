@@ -118,11 +118,13 @@ impl WorldUi {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_world_offset(mut self, offset: Vec3) -> Self {
         self.world_offset = offset;
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_ui_offset(mut self, offset: Vec2) -> Self {
         self.ui_offset = offset;
         self

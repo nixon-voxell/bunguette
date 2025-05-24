@@ -167,17 +167,20 @@ impl ButtonBackground {
         }
     }
 
-    pub fn _with_over(mut self, over: Color) -> Self {
+    #[allow(dead_code)]
+    pub fn with_over(mut self, over: Color) -> Self {
         self.over = over;
         self
     }
 
-    pub fn _with_out(mut self, out: Color) -> Self {
+    #[allow(dead_code)]
+    pub fn with_out(mut self, out: Color) -> Self {
         self.out = out;
         self
     }
 
-    pub fn _with_pressed(mut self, pressed: Color) -> Self {
+    #[allow(dead_code)]
+    pub fn with_pressed(mut self, pressed: Color) -> Self {
         self.pressed = pressed;
         self
     }
