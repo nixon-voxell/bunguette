@@ -239,10 +239,8 @@ fn setup_possession_ui(mut commands: Commands) {
         "Press Esc (keyboard) | B (controller) to cancel.";
     const INSTRUCTION_A: &str = "Press:\n\
     A (keyboard) / DPadLeft (controller)";
-
     const INSTRUCTION_B: &str = "Press:\n\
     D (keyboard) / DPadRight (controller)";
-
     const INSTRUCTION_READY: &str =
         "Press Enter (keyboard) / A (controller) to confirm!";
 
