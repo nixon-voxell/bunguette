@@ -1,4 +1,3 @@
-use bevy::ecs::relationship::RelatedSpawner;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
 use bevy::{color::palettes::tailwind::*, ecs::spawn::SpawnWith};
@@ -52,7 +51,7 @@ fn setup_menu(mut commands: Commands) {
                     TextColor(ORANGE_600.into()),
                     TextShadow::default(),
                 )),
-                SpawnWith(|parent: &mut RelatedSpawner<ChildOf>| {
+                SpawnWith(|parent: &mut ChildSpawner| {
                     parent
                         .spawn(
                             LabelButton::new("Play!")

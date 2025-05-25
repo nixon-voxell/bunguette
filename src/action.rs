@@ -5,28 +5,25 @@ pub(super) struct ActionPlugin;
 
 impl Plugin for ActionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_kbm)
-            .add_observer(setup_gamepads);
+        app.add_observer(setup_gamepad_index);
     }
 }
 
-/// Setup only 1 [`InputMap`] for keyboard actions.
-fn setup_kbm(mut commands: Commands) {
-    let entity = commands.spawn(PlayerAction::new_kbm()).id();
-    info!("Setup `PlayerAction` input map for keyboard {entity}.");
-}
-
 /// Create a [`InputMap`] for every connected gamepads.
-fn setup_gamepads(
+fn setup_gamepad_index(
     trigger: Trigger<OnAdd, Gamepad>,
     mut commands: Commands,
+    q_gamepad_indices: Query<(), With<GamepadIndex>>,
+    mut count: Local<u8>,
 ) {
     let entity = trigger.target();
-    commands
-        .entity(entity)
-        .insert(PlayerAction::new_gamepad().with_gamepad(entity));
 
-    info!("Setup `PlayerAction` input map for gamepad {entity}.");
+    if q_gamepad_indices.contains(entity) == false {
+        commands.entity(entity).insert(GamepadIndex(*count));
+        *count += 1;
+    }
+
+    info!("Setup `GamepadIndex` input map for gamepad {entity}.");
 }
 
 #[derive(
@@ -63,5 +60,14 @@ impl PlayerAction {
             .with(Self::Jump, KeyCode::Space)
             .with(Self::Interact, KeyCode::KeyE)
             .with(Self::Attack, MouseButton::Left)
+    }
+}
+
+#[derive(Component)]
+pub struct GamepadIndex(u8);
+
+impl GamepadIndex {
+    pub fn get(&self) -> u8 {
+        self.0
     }
 }
