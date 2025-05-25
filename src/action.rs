@@ -9,7 +9,7 @@ impl Plugin for ActionPlugin {
     }
 }
 
-/// Create a [`InputMap`] for every connected gamepads.
+/// Create a [`GamepadIndex`] for every connected gamepads.
 fn setup_gamepad_index(
     trigger: Trigger<OnAdd, Gamepad>,
     mut commands: Commands,
