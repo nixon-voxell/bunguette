@@ -2,33 +2,8 @@ use bevy::prelude::*;
 use serde::Deserialize;
 use std::fs;
 
-/// The root structure for the RON file containing all item definitions
-#[derive(Debug, Clone, Deserialize, Resource)]
-pub struct ItemList {
-    pub items: Vec<ItemMeta>,
-}
-
-/// Metadata for each item type in the game - loaded from RON files
-#[derive(Debug, Clone, Deserialize)]
-pub struct ItemMeta {
-    pub id: u32,
-    pub name: String,
-    pub icon_path: Option<String>,
-    pub _description: Option<String>,
-    pub stackable: bool,
-    pub max_stack_size: u32,
-}
-
-/// A registry resource that holds all ItemMeta by their unique id
-#[derive(Resource, Default)]
-pub struct ItemRegistry {
-    pub by_id: std::collections::HashMap<u32, ItemMeta>,
-    pub icons: std::collections::HashMap<u32, Handle<Image>>,
-    pub loaded: bool,
-}
-
 /// Plugin to handle item metadata loading and registry setup
-pub struct ItemPlugin;
+pub(super) struct ItemPlugin;
 
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
@@ -87,4 +62,29 @@ fn populate_registry(
         "Populated ItemRegistry with {} items",
         item_list.items.len()
     );
+}
+
+/// The root structure for the RON file containing all item definitions
+#[derive(Debug, Clone, Deserialize, Resource)]
+pub struct ItemList {
+    pub items: Vec<ItemMeta>,
+}
+
+/// Metadata for each item type in the game - loaded from RON files
+#[derive(Debug, Clone, Deserialize)]
+pub struct ItemMeta {
+    pub id: u32,
+    pub name: String,
+    pub icon_path: Option<String>,
+    pub _description: Option<String>,
+    pub stackable: bool,
+    pub max_stack_size: u32,
+}
+
+/// A registry resource that holds all ItemMeta by their unique id
+#[derive(Resource, Default)]
+pub struct ItemRegistry {
+    pub by_id: std::collections::HashMap<u32, ItemMeta>,
+    pub icons: std::collections::HashMap<u32, Handle<Image>>,
+    pub loaded: bool,
 }

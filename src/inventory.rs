@@ -1,11 +1,11 @@
 use crate::interaction::InteractionPlayer;
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use item::ItemRegistry;
 
 mod inventory_input;
+mod inventory_ui;
 mod item;
-
-pub use item::ItemRegistry;
 
 pub(super) struct InventoryPlugin;
 
@@ -14,6 +14,7 @@ impl Plugin for InventoryPlugin {
         app.add_plugins((
             inventory_input::InventoryInputPlugin,
             item::ItemPlugin,
+            inventory_ui::InventoryUiPlugin,
         ))
         .add_observer(handle_item_added_to_inventory)
         .add_observer(handle_item_removed_from_inventory)
