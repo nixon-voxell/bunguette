@@ -1,13 +1,18 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::player::{PlayerA, PlayerB, PlayerType};
+use crate::player::{PlayerA, PlayerB, PlayerState, PlayerType};
 
 pub(super) struct ActionPlugin;
 
 impl Plugin for ActionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, hookup_target_action)
+        app.add_plugins(InputManagerPlugin::<PlayerAction>::default())
+            .add_systems(
+                Update,
+                hookup_target_action
+                    .run_if(in_state(PlayerState::Possessed)),
+            )
             .add_observer(setup_gamepad_index);
     }
 }
@@ -84,8 +89,14 @@ impl PlayerAction {
     pub fn new_gamepad() -> InputMap<Self> {
         InputMap::default()
             // Gamepad input bindings.
-            .with_dual_axis(Self::Move, GamepadStick::LEFT)
-            .with_dual_axis(Self::Aim, GamepadStick::RIGHT)
+            .with_dual_axis(
+                Self::Move,
+                GamepadStick::LEFT.with_deadzone_symmetric(0.1),
+            )
+            .with_dual_axis(
+                Self::Aim,
+                GamepadStick::RIGHT.with_deadzone_symmetric(0.1),
+            )
             .with(Self::Jump, GamepadButton::South)
             .with(Self::Interact, GamepadButton::West)
             .with(Self::Attack, GamepadButton::RightTrigger2)
@@ -113,8 +124,14 @@ impl GamepadIndex {
 }
 
 /// Tag component for entities that requires action.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct RequireAction;
 
-#[derive(Component)]
+#[derive(Component, Deref)]
 pub struct TargetAction(Entity);
+
+impl TargetAction {
+    pub fn get(&self) -> Entity {
+        self.0
+    }
+}

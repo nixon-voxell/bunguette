@@ -1,66 +1,41 @@
-use avian3d::{math::*, parry::na::RealField, prelude::*};
+use avian3d::prelude::*;
 use bevy::prelude::*;
+use leafwing_input_manager::prelude::*;
+
+use crate::{
+    action::{PlayerAction, RequireAction, TargetAction},
+    player::PlayerType,
+};
 
 /// Plugin that sets up kinematic character movement
 pub(super) struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app
-            // .add_systems(Startup, spawn_test_scene)
-            .add_event::<MovementAction>()
-            .add_systems(
-                Update,
-                (
-                    keyboard_input,
-                    apply_gravity,
-                    update_grounded,
-                    movement,
-                    apply_movement_damping,
-                )
-                    .chain(),
+        app.add_systems(
+            Update,
+            (
+                apply_gravity,
+                check_grounded,
+                movement,
+                movement_damping,
             )
-            .add_systems(
-                PhysicsSchedule,
-                kinematic_controller_collisions
-                    .in_set(NarrowPhaseSet::Last),
-            );
+                .chain(),
+        )
+        .add_systems(
+            PhysicsSchedule,
+            kinematic_controller_collisions
+                .in_set(NarrowPhaseSet::Last),
+        );
 
         app.register_type::<CharacterController>();
     }
 }
 
-/// Reads keyboard input and emits movement events
-fn keyboard_input(
-    mut writer: EventWriter<MovementAction>,
-    keys: Res<ButtonInput<KeyCode>>,
-) {
-    let up = keys.pressed(KeyCode::KeyW);
-    let down = keys.pressed(KeyCode::KeyS);
-    let left = keys.pressed(KeyCode::KeyA);
-    let right = keys.pressed(KeyCode::KeyD);
-
-    let dir = Vector2::new(
-        (right as i32 - left as i32) as Scalar,
-        (up as i32 - down as i32) as Scalar,
-    )
-    .clamp_length_max(1.0);
-
-    let sprint = keys.pressed(KeyCode::ShiftLeft)
-        || keys.pressed(KeyCode::ShiftRight);
-
-    if dir != Vector2::ZERO {
-        writer.write(MovementAction::Move { dir, sprint });
-    }
-    if keys.just_pressed(KeyCode::Space) {
-        writer.write(MovementAction::Jump);
-    }
-}
-
-/// Updates grounded state by raycasting downwards
-fn update_grounded(
+/// Check grounded state by raycasting downwards.
+fn check_grounded(
     mut spatial_query: SpatialQuery,
-    mut query: Query<(
+    mut q_characters: Query<(
         Entity,
         &GlobalTransform,
         &CharacterController,
@@ -69,8 +44,10 @@ fn update_grounded(
 ) {
     spatial_query.update_pipeline();
 
-    for (entity, tf, character, mut is_grounded) in query.iter_mut() {
-        let char_pos = tf.translation();
+    for (entity, global_transform, character, mut is_grounded) in
+        q_characters.iter_mut()
+    {
+        let char_pos = global_transform.translation();
 
         let ray_origin = char_pos;
         let ray_direction = Dir3::NEG_Y;
@@ -105,16 +82,18 @@ fn update_grounded(
 /// Applies gravity to vertical velocity
 fn apply_gravity(
     time: Res<Time>,
-    mut query: Query<(
+    mut q_characters: Query<(
         &mut LinearVelocity,
         &CharacterController,
         &IsGrounded,
     )>,
 ) {
-    let dt = time.delta_secs_f64().adjust_precision();
-    for (mut linvel, ctl, is_grounded) in query.iter_mut() {
+    let dt = time.delta_secs();
+    for (mut linear_velocity, character, is_grounded) in
+        q_characters.iter_mut()
+    {
         if is_grounded.0 == false {
-            linvel.0 += ctl.gravity * dt;
+            linear_velocity.0 += character.gravity * dt;
         }
     }
 }
@@ -122,119 +101,107 @@ fn apply_gravity(
 /// Handles movement and jumping
 fn movement(
     time: Res<Time>,
-    mut reader: EventReader<MovementAction>,
-    cam_tf_q: Query<&GlobalTransform, With<Camera3d>>,
-    mut query: Query<(
-        &mut CharacterController,
+    q_camera_transform: Query<&GlobalTransform, With<Camera3d>>,
+    q_actions: Query<&ActionState<PlayerAction>>,
+    mut q_characters: Query<(
+        &CharacterController,
         &mut CharacterVelocity,
-        &mut IsGrounded,
         &mut Transform,
         &mut LinearVelocity,
+        &TargetAction,
+        &PlayerType,
     )>,
 ) {
     let dt = time.delta_secs_f64() as f32;
 
-    // Speed caps
-    let max_walk = 5.0;
-    let max_sprint = 10.0;
-
-    // Get camera transform
-    let cam_tf = match cam_tf_q.single() {
-        Ok(tf) => tf,
-        Err(_) => return,
+    // Get camera transform.
+    let Ok(cam_global_transform) = q_camera_transform.single() else {
+        return;
     };
-    let cam_forward = cam_tf.forward();
-    let cam_forward = Vec3::new(cam_forward.x, 0.0, cam_forward.z)
-        .normalize_or_zero();
-    let cam_right = cam_forward.cross(Vec3::Y).normalize_or_zero();
 
-    for event in reader.read() {
-        match event {
-            MovementAction::Move { dir, sprint }
-                if *dir != Vector2::ZERO =>
-            {
-                // Compute yaw directly from that vector: atan2(x, z)
-                let world_move =
-                    (cam_forward * dir.y) + (cam_right * dir.x);
-                let world_move = world_move.normalize_or_zero();
+    let cam_forward = cam_global_transform.forward();
+    let cam_forward =
+        Vec2::new(cam_forward.x, cam_forward.z).normalize_or_zero();
+    let cam_left = cam_global_transform.left();
+    let cam_left =
+        Vec2::new(cam_left.x, cam_left.z).normalize_or_zero();
 
-                // Compute yaw and apply offset based on model orientation
-                let yaw = f32::atan2(-world_move.x, -world_move.z);
+    for (
+        character,
+        mut character_velocity,
+        mut transform,
+        mut linear_velocity,
+        target_action,
+        player_type,
+    ) in q_characters.iter_mut()
+    {
+        let Ok(action) = q_actions.get(target_action.get()) else {
+            warn!("No `InputMap` found for player: {player_type:?}");
+            continue;
+        };
 
-                for (
-                    ctl,
-                    mut char_velocity,
-                    is_grounded,
-                    mut tx,
-                    mut linvel,
-                ) in query.iter_mut()
-                {
-                    // Rotate to face movement direction
-                    tx.rotation = Quat::from_rotation_y(yaw);
-
-                    // Only allow sprinting if grounded
-                    let can_sprint = *sprint && is_grounded.0;
-
-                    // Apply acceleration * sprint factor
-                    let factor = if can_sprint { 2.0 } else { 1.0 };
-                    let acceleration = ctl.acceleration;
-                    linvel.0 +=
-                        world_move * (acceleration * dt * factor);
-
-                    // Clamp horizontal speed (only sprint speed if grounded)
-                    let max_speed = if can_sprint {
-                        max_sprint
-                    } else {
-                        max_walk
-                    };
-                    let horiz = Vec2::new(linvel.0.x, linvel.0.z);
-                    if horiz.length() > max_speed {
-                        let clamped = horiz.normalize() * max_speed;
-                        linvel.0.x = clamped.x;
-                        linvel.0.z = clamped.y;
-                    }
-
-                    // Synchronize controller velocity
-                    char_velocity.0 = linvel.0;
-                }
-            }
-            MovementAction::Jump => {
-                for (ctl, _, mut is_grounded, _, mut linvel) in
-                    query.iter_mut()
-                {
-                    if is_grounded.0 {
-                        linvel.0.y = ctl.jump_impulse;
-                        is_grounded.0 = false;
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // Clamp horizontal speed for airborne characters every frame
-    for (_, _, is_grounded, _, mut linvel) in query.iter_mut() {
-        if is_grounded.0 {
+        let movement = action
+            .clamped_axis_pair(&PlayerAction::Move)
+            .clamp_length_max(1.0);
+        if movement.length_squared() <= f32::EPSILON {
+            // Ignore movement when it's negligible.
             continue;
         }
+        info!("{movement}");
 
-        let horiz = Vec2::new(linvel.0.x, linvel.0.z);
-        if horiz.length() > max_walk {
-            let clamped = horiz.normalize() * max_walk;
-            linvel.0.x = clamped.x;
-            linvel.0.z = clamped.y;
+        // Compute yaw directly from that vector: atan2(x, z)
+        let world_move = (cam_forward * movement.y)
+            - (cam_left * movement.x).normalize_or_zero();
+        let world_move = Vec3::new(world_move.x, 0.0, world_move.y);
+
+        // Compute yaw and apply offset based on model orientation
+        let yaw = world_move.y.atan2(world_move.x);
+
+        // Rotate to face movement direction
+        transform.rotation = Quat::from_rotation_y(yaw);
+
+        // Only allow sprinting if grounded
+        // let can_sprint = *sprint && is_grounded.0;
+        let is_sprinting = false;
+
+        // Apply acceleration * sprint factor
+        let factor = if is_sprinting { 2.0 } else { 1.0 };
+        let acceleration = character.acceleration;
+        linear_velocity.0 +=
+            world_move * (acceleration * dt * factor);
+
+        // Clamp horizontal speed (only sprint speed if grounded)
+        let max_speed = match is_sprinting {
+            true => character.max_sprint,
+            false => character.max_walk,
+        };
+
+        let horiz =
+            Vec2::new(linear_velocity.0.x, linear_velocity.0.z);
+        if horiz.length() > max_speed {
+            let clamped = horiz.normalize() * max_speed;
+            linear_velocity.0.x = clamped.x;
+            linear_velocity.0.z = clamped.y;
         }
+
+        // Synchronize controller velocity
+        character_velocity.0 = linear_velocity.0;
     }
 }
 
 /// Applies damping to horizontal movement
-fn apply_movement_damping(
-    mut query: Query<(&mut LinearVelocity, &CharacterController)>,
+fn movement_damping(
+    mut q_characters: Query<(
+        &mut LinearVelocity,
+        &CharacterController,
+    )>,
 ) {
-    for (mut linvel, ctl) in query.iter_mut() {
-        // Apply damping directly to physics velocity
-        linvel.x *= ctl.damping;
-        linvel.z *= ctl.damping;
+    for (mut linear_velocity, character) in q_characters.iter_mut() {
+        // Damping cannot go above 1.0.
+        let damping = character.damping.min(1.0);
+        // Apply damping directly to physics velocity, except gravity.
+        linear_velocity.x *= damping;
+        linear_velocity.z *= damping;
     }
 }
 
@@ -243,7 +210,7 @@ fn kinematic_controller_collisions(
     collisions: Collisions,
     bodies: Query<&RigidBody>,
     collider_rbs: Query<&ColliderOf, Without<Sensor>>,
-    mut q_controllers: Query<
+    mut q_characters: Query<
         (
             &mut Position,
             &mut LinearVelocity,
@@ -254,7 +221,7 @@ fn kinematic_controller_collisions(
     >,
     time: Res<Time>,
 ) {
-    let dt = time.delta_secs_f64().adjust_precision();
+    let dt = time.delta_secs();
 
     for contacts in collisions.iter() {
         // Pull out the two bodies
@@ -266,22 +233,22 @@ fn kinematic_controller_collisions(
         };
 
         // Figure out which one is me
-        let (entity, is_first, other) =
-            if q_controllers.get(a).is_ok() {
-                (a, true, b)
-            } else if q_controllers.get(b).is_ok() {
-                (b, false, a)
-            } else {
-                continue;
-            };
+        let (entity, is_first, other) = if q_characters.get(a).is_ok()
+        {
+            (a, true, b)
+        } else if q_characters.get(b).is_ok() {
+            (b, false, a)
+        } else {
+            continue;
+        };
 
         // Only do kinematic
         if !bodies.get(entity).unwrap().is_kinematic() {
             continue;
         }
 
-        let (mut pos, mut linvel, ctl, mut is_grounded) =
-            q_controllers.get_mut(entity).unwrap();
+        let (mut pos, mut linear_velocity, ctl, mut is_grounded) =
+            q_characters.get_mut(entity).unwrap();
 
         // Detect if the other collider is dynamic
         let other_dynamic =
@@ -299,7 +266,7 @@ fn kinematic_controller_collisions(
             for pt in &manifold.points {
                 if pt.penetration > 0.0 {
                     let is_ground = normal.y > 0.7;
-                    let is_jumping = linvel.y > 0.0;
+                    let is_jumping = linear_velocity.y > 0.0;
 
                     // Apply penetration correction unless jumping into ceiling
                     if !(is_ground && is_jumping) {
@@ -308,11 +275,11 @@ fn kinematic_controller_collisions(
 
                     // Cancel all vertical velocity when grounded
                     if is_ground {
-                        linvel.y = 0.0;
+                        linear_velocity.y = 0.0;
                         is_grounded.0 = true;
                     }
                 }
-                deepest = deepest.max(pt.penetration);
+                deepest = f32::max(deepest, pt.penetration);
             }
 
             // Skip dynamic collisions
@@ -320,36 +287,36 @@ fn kinematic_controller_collisions(
                 continue;
             }
 
-            let slope_angle = normal.angle_between(Vector::Y).abs();
+            let slope_angle = normal.angle_between(Vec3::Y).abs();
             let can_climb = slope_angle <= ctl.max_slope_angle;
 
             if deepest > 0.0 {
                 if can_climb {
                     // slope-snap logic
                     let dir_xz = normal
-                        .reject_from_normalized(Vector::Y)
+                        .reject_from_normalized(Vec3::Y)
                         .normalize_or_zero();
-                    let vel_xz = linvel.dot(dir_xz);
+                    let vel_xz = linear_velocity.dot(dir_xz);
                     let max_y = -vel_xz * slope_angle.tan();
-                    linvel.y = linvel.y.max(max_y);
+                    linear_velocity.y = linear_velocity.y.max(max_y);
                 } else {
                     // Wall-slide: zero out velocity into the wall
-                    let into = linvel.dot(normal);
+                    let into = linear_velocity.dot(normal);
                     if into < 0.0 {
-                        linvel.0 -= normal * into;
+                        linear_velocity.0 -= normal * into;
                     }
                 }
             } else {
                 // Speculative contact
-                let n_speed = linvel.dot(normal);
+                let n_speed = linear_velocity.dot(normal);
                 if n_speed < 0.0 {
                     let impulse = (n_speed - (deepest / dt)) * normal;
                     if can_climb {
-                        linvel.y -= impulse.y.min(0.0);
+                        linear_velocity.y -= impulse.y.min(0.0);
                     } else {
                         let mut i = impulse;
                         i.y = i.y.max(0.0);
-                        linvel.0 -= i;
+                        linear_velocity.0 -= i;
                     }
                 }
             }
@@ -357,27 +324,35 @@ fn kinematic_controller_collisions(
     }
 }
 
-/// Movement actions triggered by input
-#[derive(Event)]
-pub enum MovementAction {
-    Move { dir: Vector2, sprint: bool },
-    Jump,
-}
-
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
-#[require(CharacterVelocity, IsGrounded)]
+#[require(CharacterVelocity, IsGrounded, RequireAction)]
 #[reflect(Component)]
 pub struct CharacterController {
-    pub acceleration: Scalar,
-    pub damping: Scalar,
-    pub jump_impulse: Scalar,
-    pub max_slope_angle: Scalar,
-    pub gravity: Vector,
+    /// Acceleration applied during moveme movement.
+    pub acceleration: f32,
+    /// Maximum velocity of walking.
+    pub max_walk: f32,
+    /// Maximum velocity of sprinting.
+    pub max_sprint: f32,
+    /// Damping value applied every frame (should be below 1.0).
+    pub damping: f32,
+    pub jump_impulse: f32,
+    pub max_slope_angle: f32,
+    pub gravity: Vec3,
 }
 
 #[derive(Component, Deref, DerefMut, Default)]
-pub struct CharacterVelocity(pub Vector);
+pub struct CharacterVelocity(pub Vec3);
 
 #[derive(Component, Deref, DerefMut, Default)]
 pub struct IsGrounded(pub bool);
+
+//     for (ctl, _, mut is_grounded, _, mut linvel) in
+//         query.iter_mut()
+//     {
+//         if is_grounded.0 {
+//             linvel.0.y = ctl.jump_impulse;
+//             is_grounded.0 = false;
+//         }
+//     }

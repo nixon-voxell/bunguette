@@ -4,6 +4,7 @@ use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
+use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
 
 pub(super) struct PlayerPlugin;
@@ -61,7 +62,7 @@ fn ready_inputs(
         PossessorType::Gamepad(entity) => commands
             .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
-    .insert(PlayerType::A);
+    .insert((PlayerType::A, *player_a));
 
     match player_b {
         PossessorType::Keyboard => {
@@ -70,7 +71,7 @@ fn ready_inputs(
         PossessorType::Gamepad(entity) => commands
             .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
-    .insert(PlayerType::B);
+    .insert((PlayerType::B, *player_b));
 
     player_state.set(PlayerState::Possessed);
 }
@@ -402,11 +403,13 @@ fn centered_text(text: impl Into<String>) -> impl Bundle {
 fn setup_name_ui_for_player(
     trigger: Trigger<OnAdd, PlayerType>,
     mut commands: Commands,
-    q_players: Query<&PlayerType>,
-) -> Result {
+    q_players: Query<&PlayerType, With<CharacterController>>,
+) {
     let entity = trigger.target();
 
-    let player_type = q_players.get(entity)?;
+    let Ok(player_type) = q_players.get(entity) else {
+        return;
+    };
 
     let world_ui =
         WorldUi::new(entity).with_world_offset(Vec3::Y * 0.5);
@@ -443,11 +446,9 @@ fn setup_name_ui_for_player(
             commands.spawn(ui_bundle("Player B"));
         }
     }
-
-    Ok(())
 }
 
-/// Setup player tag: [`PlayerA`] and [`PlayerB`]
+/// Setup player tag: [`PlayerA`] or [`PlayerB`]
 /// based on [`PlayerType`].
 fn setup_player_tag(
     trigger: Trigger<OnAdd, PlayerType>,
@@ -518,7 +519,7 @@ impl PlayerPossessor {
 }
 
 /// Possesion type, can be keyboard or a specific gamepad.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Component, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PossessorType {
     Keyboard,
     Gamepad(Entity),

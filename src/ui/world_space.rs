@@ -42,26 +42,25 @@ fn update_world_ui(
         return;
     };
 
-    for (world_space_ui, mut node, computed_node) in
+    for (world_ui, mut node, computed_node) in
         q_world_space_uis.iter_mut()
     {
         let Ok(target_transform) =
-            q_global_transforms.get(world_space_ui.target)
+            q_global_transforms.get(world_ui.target)
         else {
             warn!(
                 "Unable to find WorldSpaceUi target: {}",
-                world_space_ui.target
+                world_ui.target
             );
             continue;
         };
 
         match camera.world_to_viewport(
             camera_transform,
-            target_transform.translation()
-                + world_space_ui.world_offset,
+            target_transform.translation() + world_ui.world_offset,
         ) {
             Ok(viewport) => {
-                let viewport = viewport + world_space_ui.ui_offset;
+                let viewport = viewport + world_ui.ui_offset;
                 let half_size = computed_node.size * 0.5;
 
                 node.left = Val::Px(viewport.x - half_size.x);
@@ -70,7 +69,7 @@ fn update_world_ui(
             Err(err) => {
                 warn!(
                     "Unable to get viewport location for target: {} ({err})",
-                    world_space_ui.target
+                    world_ui.target
                 );
             }
         }
