@@ -1,5 +1,6 @@
 use super::{Inventory, Item, ItemRegistry};
 use crate::interaction::InteractionPlayer;
+use crate::inventory::inventory_input::SelectedSlot;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
 
@@ -13,6 +14,7 @@ impl Plugin for InventoryUiPlugin {
                 toggle_inventory,
                 update_inventory_ui
                     .run_if(resource_exists::<InventoryUiState>),
+                handle_slot_clicks,
                 debug_inventory_ui,
             ),
         )
@@ -70,13 +72,58 @@ fn toggle_inventory(
     }
 }
 
+/// Handle clicking on inventory slots
+fn handle_slot_clicks(
+    mut selected_slot: ResMut<SelectedSlot>,
+    ui_state: Res<InventoryUiState>,
+    q_interactions: Query<
+        &Interaction,
+        (Changed<Interaction>, With<InventorySlot>),
+    >,
+    q_slots: Query<&InventorySlot>,
+) {
+    // Only handle clicks if inventory UI is open
+    let Some(player_entity) = ui_state.open_for_player else {
+        return;
+    };
+
+    for interaction in q_interactions.iter() {
+        if *interaction == Interaction::Pressed {
+            // Find which slot was clicked
+            for (entity, slot) in q_slots.iter().enumerate() {
+                if let Ok(slot_interaction) = q_interactions
+                    .get(Entity::from_raw(entity as u32))
+                {
+                    if *slot_interaction == Interaction::Pressed {
+                        // Update selected slot
+                        selected_slot.slot_index =
+                            Some(slot.slot_index);
+                        selected_slot.player_entity =
+                            Some(player_entity);
+                        info!(
+                            "Clicked slot {} for player {:?}",
+                            slot.slot_index + 1,
+                            player_entity
+                        );
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Update inventory UI contents for the specific player whose inventory is open
 fn update_inventory_ui(
     ui_state: Res<InventoryUiState>,
+    selected_slot: Res<SelectedSlot>,
     q_inventories: Query<&Inventory, With<InteractionPlayer>>,
     q_items: Query<&Item>,
     item_registry: Res<ItemRegistry>,
-    mut q_slots: Query<(&InventorySlot, &Children)>,
+    mut q_slots: Query<
+        (&InventorySlot, &Children, &mut BackgroundColor),
+        With<InventorySlot>,
+    >,
     mut q_images: Query<&mut ImageNode>,
     mut q_item_name_text: Query<
         &mut Text,
@@ -102,8 +149,29 @@ fn update_inventory_ui(
     };
 
     // Update each slot for this player's inventory
-    for (slot, children) in q_slots.iter_mut() {
+    for (slot, children, mut background_color) in q_slots.iter_mut() {
         let item_entity = inventory.0.get(slot.slot_index);
+
+        // Update slot background based on selection
+        let is_selected =
+            if let (Some(selected_index), Some(selected_player)) = (
+                selected_slot.slot_index,
+                selected_slot.player_entity,
+            ) {
+                selected_player == player_entity
+                    && selected_index == slot.slot_index
+            } else {
+                false
+            };
+
+        // Set background color based on selection and item presence
+        *background_color = if is_selected {
+            BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9)) // Blue for selected
+        } else if item_entity.is_some() {
+            BackgroundColor(Color::srgba(0.3, 0.3, 0.3, 0.8)) // Darker for items
+        } else {
+            BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)) // Default for empty
+        };
 
         // Update slot contents based on whether there's an item
         if let Some(&item_entity) = item_entity {
@@ -174,6 +242,7 @@ fn update_inventory_ui(
 fn debug_inventory_ui(
     keys: Res<ButtonInput<KeyCode>>,
     ui_state: Res<InventoryUiState>,
+    selected_slot: Res<SelectedSlot>,
     q_players: Query<(Entity, &Inventory), With<InteractionPlayer>>,
     q_items: Query<&Item>,
     item_registry: Res<ItemRegistry>,
@@ -183,6 +252,10 @@ fn debug_inventory_ui(
         info!("=== MULTIPLAYER INVENTORY DEBUG ===");
         info!("UI Open for player: {:?}", ui_state.open_for_player);
         info!("UI Entity: {:?}", ui_state.ui_entity);
+        info!(
+            "Selected slot: {:?} for player: {:?}",
+            selected_slot.slot_index, selected_slot.player_entity
+        );
 
         let player_count = q_players.iter().count();
         info!("Found {} players with inventories:", player_count);
@@ -200,9 +273,32 @@ fn debug_inventory_ui(
                         .get(&item.id)
                         .map(|meta| meta.name.as_str())
                         .unwrap_or("Unknown");
+
+                    let selected_marker = if let (
+                        Some(slot_index),
+                        Some(selected_player),
+                    ) = (
+                        selected_slot.slot_index,
+                        selected_slot.player_entity,
+                    ) {
+                        if selected_player == player_entity
+                            && slot_index == i
+                        {
+                            " [SELECTED]"
+                        } else {
+                            ""
+                        }
+                    } else {
+                        ""
+                    };
+
                     info!(
-                        "  Slot {}: {}x {} (Entity: {:?})",
-                        i, item.quantity, item_name, item_entity
+                        "  Slot {}: {}x {} (Entity: {:?}){}",
+                        i,
+                        item.quantity,
+                        item_name,
+                        item_entity,
+                        selected_marker
                     );
                 }
             }
@@ -226,7 +322,9 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
         + (PANEL_PADDING * 2.0);
     let total_height = (SLOT_SIZE * GRID_ROWS as f32)
         + (SLOT_GAP * (GRID_ROWS as f32 - 1.0))
-        + (PANEL_PADDING * 2.0);
+        + (PANEL_PADDING * 2.0)
+        // Extra space for instructions
+        + 40.0;
 
     commands
         .spawn((
@@ -237,17 +335,8 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
                 top: Val::Percent(50.0),
                 width: Val::Px(total_width),
                 height: Val::Px(total_height),
-                display: Display::Grid,
-                grid_template_columns: RepeatedGridTrack::px(
-                    GRID_COLS as u16,
-                    SLOT_SIZE,
-                ),
-                grid_template_rows: RepeatedGridTrack::px(
-                    GRID_ROWS as u16,
-                    SLOT_SIZE,
-                ),
-                column_gap: Val::Px(SLOT_GAP),
-                row_gap: Val::Px(SLOT_GAP),
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(PANEL_PADDING)),
                 border: UiRect::all(Val::Px(2.0)),
                 // Center the inventory panel
@@ -263,79 +352,130 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
             FocusPolicy::Block,
         ))
         .with_children(|parent| {
-            // Create inventory slots
-            for slot_index in 0..(GRID_COLS * GRID_ROWS) {
-                parent
-                    .spawn((
-                        InventorySlot { slot_index },
-                        Node {
-                            width: Val::Px(SLOT_SIZE),
-                            height: Val::Px(SLOT_SIZE),
-                            border: UiRect::all(Val::Px(1.0)),
-                            position_type: PositionType::Relative,
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(
-                            0.2, 0.2, 0.2, 0.8,
-                        )),
-                        BorderColor(Color::srgba(0.5, 0.5, 0.5, 1.0)),
-                    ))
-                    .with_children(|slot_parent| {
-                        // Item icon
-                        slot_parent.spawn((
-                            ImageNode {
-                                color: Color::NONE,
-                                ..default()
-                            },
-                            BackgroundColor(Color::NONE),
-                            Node {
-                                width: Val::Percent(90.0),
-                                height: Val::Percent(90.0),
-                                position_type: PositionType::Absolute,
-                                ..default()
-                            },
-                        ));
+            // Instructions text
+            parent.spawn((
+                Text::new("Use 1-9 keys to select slots, Q to drop, C to consume"),
+                Node {
+                    margin: UiRect::bottom(Val::Px(8.0)),
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+            ));
 
-                        // Item name text (fallback when no icon)
-                        slot_parent.spawn((
-                            ItemNameText,
-                            Text::new(""),
-                            Node {
-                                position_type: PositionType::Absolute,
-                                width: Val::Percent(100.0),
-                                height: Val::Percent(100.0),
-                                justify_content:
-                                    JustifyContent::Center,
-                                align_items: AlignItems::Center,
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                            TextFont {
-                                font_size: 10.0,
-                                ..default()
-                            },
-                        ));
+            // Grid container for inventory slots
+            parent
+                .spawn((
+                    Node {
+                        display: Display::Grid,
+                        grid_template_columns: RepeatedGridTrack::px(
+                            GRID_COLS as u16,
+                            SLOT_SIZE,
+                        ),
+                        grid_template_rows: RepeatedGridTrack::px(
+                            GRID_ROWS as u16,
+                            SLOT_SIZE,
+                        ),
+                        column_gap: Val::Px(SLOT_GAP),
+                        row_gap: Val::Px(SLOT_GAP),
+                        ..default()
+                    },
+                ))
+                .with_children(|grid_parent| {
+                    // Create inventory slots
+                    for slot_index in 0..(GRID_COLS * GRID_ROWS) {
+                        grid_parent
+                            .spawn((
+                                InventorySlot { slot_index },
+                                Button,
+                                Node {
+                                    width: Val::Px(SLOT_SIZE),
+                                    height: Val::Px(SLOT_SIZE),
+                                    border: UiRect::all(Val::Px(1.0)),
+                                    position_type: PositionType::Relative,
+                                    justify_content: JustifyContent::Center,
+                                    align_items: AlignItems::Center,
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgba(
+                                    0.2, 0.2, 0.2, 0.8,
+                                )),
+                                BorderColor(Color::srgba(0.5, 0.5, 0.5, 1.0)),
+                            ))
+                            .with_children(|slot_parent| {
+                                // Slot number label (small text in corner)
+                                slot_parent.spawn((
+                                    Text::new((slot_index + 1).to_string()),
+                                    Node {
+                                        position_type: PositionType::Absolute,
+                                        top: Val::Px(2.0),
+                                        left: Val::Px(2.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::srgba(0.7, 0.7, 0.7, 1.0)),
+                                    TextFont {
+                                        font_size: 8.0,
+                                        ..default()
+                                    },
+                                ));
 
-                        // Quantity text (bottom-right corner)
-                        slot_parent.spawn((
-                            QuantityText,
-                            Text::new(""),
-                            Node {
-                                position_type: PositionType::Absolute,
-                                bottom: Val::Px(2.0),
-                                right: Val::Px(2.0),
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                            TextFont {
-                                font_size: 12.0,
-                                ..default()
-                            },
-                        ));
-                    });
-            }
+                                // Item icon
+                                slot_parent.spawn((
+                                    ImageNode {
+                                        color: Color::NONE,
+                                        ..default()
+                                    },
+                                    BackgroundColor(Color::NONE),
+                                    Node {
+                                        width: Val::Percent(90.0),
+                                        height: Val::Percent(90.0),
+                                        position_type: PositionType::Absolute,
+                                        ..default()
+                                    },
+                                ));
+
+                                // Item name text (fallback when no icon)
+                                slot_parent.spawn((
+                                    ItemNameText,
+                                    Text::new(""),
+                                    Node {
+                                        position_type: PositionType::Absolute,
+                                        width: Val::Percent(100.0),
+                                        height: Val::Percent(100.0),
+                                        justify_content:
+                                            JustifyContent::Center,
+                                        align_items: AlignItems::Center,
+                                        ..default()
+                                    },
+                                    TextColor(Color::WHITE),
+                                    TextFont {
+                                        font_size: 10.0,
+                                        ..default()
+                                    },
+                                ));
+
+                                // Quantity text (bottom-right corner)
+                                slot_parent.spawn((
+                                    QuantityText,
+                                    Text::new(""),
+                                    Node {
+                                        position_type: PositionType::Absolute,
+                                        bottom: Val::Px(2.0),
+                                        right: Val::Px(2.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::WHITE),
+                                    TextFont {
+                                        font_size: 12.0,
+                                        ..default()
+                                    },
+                                ));
+                            });
+                    }
+                });
         })
         .id()
 }
