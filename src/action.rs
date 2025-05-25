@@ -1,11 +1,51 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
+use crate::player::{PlayerA, PlayerB, PlayerType};
+
 pub(super) struct ActionPlugin;
 
 impl Plugin for ActionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(setup_gamepad_index);
+        app.add_systems(Update, hookup_target_action)
+            .add_observer(setup_gamepad_index);
+    }
+}
+
+/// Add [`TargetAction`] to [`PlayerType`] that has [`RequireAction`].
+fn hookup_target_action(
+    mut commands: Commands,
+    q_require_actions: Query<
+        (&PlayerType, Entity),
+        (With<RequireAction>, Without<TargetAction>),
+    >,
+    q_action_a: Query<
+        Entity,
+        (With<InputMap<PlayerAction>>, With<PlayerA>),
+    >,
+    q_action_b: Query<
+        Entity,
+        (With<InputMap<PlayerAction>>, With<PlayerB>),
+    >,
+) {
+    // Nothing to do!
+    if q_require_actions.is_empty() {
+        return;
+    }
+
+    let Ok(action_a) = q_action_a.single() else {
+        return;
+    };
+    let Ok(action_b) = q_action_b.single() else {
+        return;
+    };
+
+    for (player_type, entity) in q_require_actions.iter() {
+        let mut cmd = commands.entity(entity);
+        match player_type {
+            PlayerType::A => cmd.insert(TargetAction(action_a)),
+            PlayerType::B => cmd.insert(TargetAction(action_b)),
+        };
     }
 }
 
@@ -71,3 +111,10 @@ impl GamepadIndex {
         self.0
     }
 }
+
+/// Tag component for entities that requires action.
+#[derive(Component)]
+pub struct RequireAction;
+
+#[derive(Component)]
+pub struct TargetAction(Entity);

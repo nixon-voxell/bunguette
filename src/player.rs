@@ -56,27 +56,21 @@ fn ready_inputs(
 
     match player_a {
         PossessorType::Keyboard => {
-            commands.spawn((PlayerAction::new_kbm(), PlayerA));
+            commands.spawn(PlayerAction::new_kbm())
         }
-        PossessorType::Gamepad(entity) => {
-            commands.spawn((
-                PlayerAction::new_gamepad().with_gamepad(*entity),
-                PlayerA,
-            ));
-        }
+        PossessorType::Gamepad(entity) => commands
+            .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
+    .insert(PlayerType::A);
 
     match player_b {
         PossessorType::Keyboard => {
-            commands.spawn((PlayerAction::new_kbm(), PlayerB));
+            commands.spawn(PlayerAction::new_kbm())
         }
-        PossessorType::Gamepad(entity) => {
-            commands.spawn((
-                PlayerAction::new_gamepad().with_gamepad(*entity),
-                PlayerB,
-            ));
-        }
+        PossessorType::Gamepad(entity) => commands
+            .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
+    .insert(PlayerType::B);
 
     player_state.set(PlayerState::Possessed);
 }

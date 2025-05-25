@@ -63,12 +63,13 @@ fn update_grounded(
     mut query: Query<(
         Entity,
         &GlobalTransform,
-        &mut CharacterController,
+        &CharacterController,
+        &mut IsGrounded,
     )>,
 ) {
     spatial_query.update_pipeline();
 
-    for (entity, tf, mut ctl) in query.iter_mut() {
+    for (entity, tf, character, mut is_grounded) in query.iter_mut() {
         let char_pos = tf.translation();
 
         let ray_origin = char_pos;
@@ -90,12 +91,13 @@ fn update_grounded(
 
             // Check if the normal is valid and surface is walkable
             if slope_angle.is_finite() {
-                ctl.grounded = slope_angle <= ctl.max_slope_angle;
+                is_grounded.0 =
+                    slope_angle <= character.max_slope_angle;
             } else {
-                ctl.grounded = false;
+                is_grounded.0 = false;
             }
         } else {
-            ctl.grounded = false;
+            is_grounded.0 = false;
         }
     }
 }
@@ -103,11 +105,15 @@ fn update_grounded(
 /// Applies gravity to vertical velocity
 fn apply_gravity(
     time: Res<Time>,
-    mut query: Query<(&mut LinearVelocity, &CharacterController)>,
+    mut query: Query<(
+        &mut LinearVelocity,
+        &CharacterController,
+        &IsGrounded,
+    )>,
 ) {
     let dt = time.delta_secs_f64().adjust_precision();
-    for (mut linvel, ctl) in query.iter_mut() {
-        if !ctl.grounded {
+    for (mut linvel, ctl, is_grounded) in query.iter_mut() {
+        if is_grounded.0 == false {
             linvel.0 += ctl.gravity * dt;
         }
     }
@@ -120,6 +126,8 @@ fn movement(
     cam_tf_q: Query<&GlobalTransform, With<Camera3d>>,
     mut query: Query<(
         &mut CharacterController,
+        &mut CharacterVelocity,
+        &mut IsGrounded,
         &mut Transform,
         &mut LinearVelocity,
     )>,
@@ -153,13 +161,19 @@ fn movement(
                 // Compute yaw and apply offset based on model orientation
                 let yaw = f32::atan2(-world_move.x, -world_move.z);
 
-                for (mut ctl, mut tx, mut linvel) in query.iter_mut()
+                for (
+                    ctl,
+                    mut char_velocity,
+                    is_grounded,
+                    mut tx,
+                    mut linvel,
+                ) in query.iter_mut()
                 {
                     // Rotate to face movement direction
                     tx.rotation = Quat::from_rotation_y(yaw);
 
                     // Only allow sprinting if grounded
-                    let can_sprint = *sprint && ctl.grounded;
+                    let can_sprint = *sprint && is_grounded.0;
 
                     // Apply acceleration * sprint factor
                     let factor = if can_sprint { 2.0 } else { 1.0 };
@@ -181,14 +195,16 @@ fn movement(
                     }
 
                     // Synchronize controller velocity
-                    ctl.velocity = linvel.0;
+                    char_velocity.0 = linvel.0;
                 }
             }
             MovementAction::Jump => {
-                for (mut ctl, _, mut linvel) in query.iter_mut() {
-                    if ctl.grounded {
+                for (ctl, _, mut is_grounded, _, mut linvel) in
+                    query.iter_mut()
+                {
+                    if is_grounded.0 {
                         linvel.0.y = ctl.jump_impulse;
-                        ctl.grounded = false;
+                        is_grounded.0 = false;
                     }
                 }
             }
@@ -197,14 +213,16 @@ fn movement(
     }
 
     // Clamp horizontal speed for airborne characters every frame
-    for (ctl, _, mut linvel) in query.iter_mut() {
-        if !ctl.grounded {
-            let horiz = Vec2::new(linvel.0.x, linvel.0.z);
-            if horiz.length() > max_walk {
-                let clamped = horiz.normalize() * max_walk;
-                linvel.0.x = clamped.x;
-                linvel.0.z = clamped.y;
-            }
+    for (_, _, is_grounded, _, mut linvel) in query.iter_mut() {
+        if is_grounded.0 {
+            continue;
+        }
+
+        let horiz = Vec2::new(linvel.0.x, linvel.0.z);
+        if horiz.length() > max_walk {
+            let clamped = horiz.normalize() * max_walk;
+            linvel.0.x = clamped.x;
+            linvel.0.z = clamped.y;
         }
     }
 }
@@ -225,11 +243,12 @@ fn kinematic_controller_collisions(
     collisions: Collisions,
     bodies: Query<&RigidBody>,
     collider_rbs: Query<&ColliderOf, Without<Sensor>>,
-    mut controllers: Query<
+    mut q_controllers: Query<
         (
             &mut Position,
             &mut LinearVelocity,
-            &mut CharacterController,
+            &CharacterController,
+            &mut IsGrounded,
         ),
         (With<RigidBody>, With<CharacterController>),
     >,
@@ -247,22 +266,22 @@ fn kinematic_controller_collisions(
         };
 
         // Figure out which one is me
-        let (entity, is_first, other) = if controllers.get(a).is_ok()
-        {
-            (a, true, b)
-        } else if controllers.get(b).is_ok() {
-            (b, false, a)
-        } else {
-            continue;
-        };
+        let (entity, is_first, other) =
+            if q_controllers.get(a).is_ok() {
+                (a, true, b)
+            } else if q_controllers.get(b).is_ok() {
+                (b, false, a)
+            } else {
+                continue;
+            };
 
         // Only do kinematic
         if !bodies.get(entity).unwrap().is_kinematic() {
             continue;
         }
 
-        let (mut pos, mut linvel, mut ctl) =
-            controllers.get_mut(entity).unwrap();
+        let (mut pos, mut linvel, ctl, mut is_grounded) =
+            q_controllers.get_mut(entity).unwrap();
 
         // Detect if the other collider is dynamic
         let other_dynamic =
@@ -290,7 +309,7 @@ fn kinematic_controller_collisions(
                     // Cancel all vertical velocity when grounded
                     if is_ground {
                         linvel.y = 0.0;
-                        ctl.grounded = true;
+                        is_grounded.0 = true;
                     }
                 }
                 deepest = deepest.max(pt.penetration);
@@ -347,15 +366,18 @@ pub enum MovementAction {
 
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
+#[require(CharacterVelocity, IsGrounded)]
 #[reflect(Component)]
 pub struct CharacterController {
     pub acceleration: Scalar,
     pub damping: Scalar,
     pub jump_impulse: Scalar,
     pub max_slope_angle: Scalar,
-    // Gravity
     pub gravity: Vector,
-    // State - Compute only
-    pub grounded: bool,
-    pub velocity: Vector,
 }
+
+#[derive(Component, Deref, DerefMut, Default)]
+pub struct CharacterVelocity(pub Vector);
+
+#[derive(Component, Deref, DerefMut, Default)]
+pub struct IsGrounded(pub bool);
