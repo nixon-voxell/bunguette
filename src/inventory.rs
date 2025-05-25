@@ -44,8 +44,8 @@ fn handle_item_added_to_inventory(
         if let Ok(mut inventory) =
             q_inventories.get_mut(player_entity)
         {
-            if !inventory.0.contains(&item_entity) {
-                inventory.0.push(item_entity);
+            if !inventory.items.contains(&item_entity) {
+                inventory.items.push(item_entity);
             }
         }
     }
@@ -62,9 +62,9 @@ fn handle_item_removed_from_inventory(
     // we need to search through all inventories to find and remove the item
     for mut inventory in q_inventories.iter_mut() {
         if let Some(pos) =
-            inventory.0.iter().position(|&e| e == item_entity)
+            inventory.items.iter().position(|&e| e == item_entity)
         {
-            inventory.0.remove(pos);
+            inventory.items.remove(pos);
             break;
         }
     }
@@ -74,7 +74,7 @@ fn handle_item_removed_from_inventory(
 fn handle_pickup(
     trigger: Trigger<PickupEvent>,
     mut commands: Commands,
-    q_inventories: Query<&mut Inventory>,
+    q_inventories: Query<&Inventory>,
     mut q_items: Query<&mut Item>,
     q_players: Query<Entity, With<InteractionPlayer>>,
     item_registry: Res<ItemRegistry>,
@@ -93,7 +93,10 @@ fn handle_pickup(
 
     // Ensure player has an inventory
     if q_inventories.get(player_entity).is_err() {
-        commands.entity(player_entity).insert(Inventory::default());
+        commands.entity(player_entity).insert(Inventory {
+            capacity: 9,
+            ..Default::default()
+        });
         // Early return since we just inserted the inventory and need to wait for next frame
         commands.entity(item_entity).insert(ItemOf(player_entity));
         commands
@@ -113,7 +116,11 @@ fn handle_pickup(
         return;
     };
 
-    // Get item metadata to check if it's stackable
+    let Ok(inventory) = q_inventories.get(player_entity) else {
+        warn!("Player {:?} has no inventory", player_entity);
+        return;
+    };
+
     let Some(item_meta) = item_registry.by_id.get(&item.id) else {
         warn!("Item {} not found in registry", item.id);
         // Still allow pickup, just treat as non-stackable
@@ -126,6 +133,40 @@ fn handle_pickup(
         return;
     };
 
+    // Check if inventory is full and item can be added
+    let mut can_add = false;
+    if inventory.items.len() < inventory.capacity {
+        can_add = true; // Space for a new slot
+    } else if item_meta.stackable {
+        // Check if item can stack with existing items
+        let stackable_candidates: Vec<Entity> = inventory
+            .items
+            .iter()
+            .copied()
+            .filter(|&e| {
+                if let Ok(existing_item) = q_items.get(e) {
+                    existing_item.id == item.id
+                        && existing_item.quantity
+                            < item_meta.max_stack_size
+                } else {
+                    false
+                }
+            })
+            .collect();
+        can_add = !stackable_candidates.is_empty();
+    }
+
+    if !can_add {
+        warn!(
+            "Cannot pick up item {}x {}: inventory is full ({} / {})",
+            item.quantity,
+            item_meta.name,
+            inventory.items.len(),
+            inventory.capacity
+        );
+        return;
+    }
+
     let mut item_consumed = false;
     let item_id = item.id;
     let item_quantity = item.quantity;
@@ -136,7 +177,7 @@ fn handle_pickup(
         if let Ok(inventory) = q_inventories.get(player_entity) {
             // Collect entities that might be stackable
             let stackable_candidates: Vec<Entity> = inventory
-                .0
+                .items
                 .iter()
                 .copied()
                 .filter(|&e| {
@@ -339,7 +380,10 @@ pub struct ItemOf(pub Entity);
 /// Marks an entity as having an inventory
 #[derive(Component, Reflect, Default)]
 #[reflect(Component)]
-pub struct Inventory(pub Vec<Entity>);
+pub struct Inventory {
+    pub items: Vec<Entity>,
+    pub capacity: usize,
+}
 
 /// Marks an item as pickupable from the world
 #[derive(Component, Reflect, Default)]

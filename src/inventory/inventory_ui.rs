@@ -33,6 +33,7 @@ fn toggle_inventory(
         (With<InteractionPlayer>, With<LocalPlayer>),
     >,
     q_any_player: Query<Entity, With<InteractionPlayer>>,
+    q_inventories: Query<&Inventory, With<InteractionPlayer>>,
 ) {
     if keys.just_pressed(KeyCode::Tab) {
         // Determine which player to show inventory for
@@ -64,10 +65,14 @@ fn toggle_inventory(
                 commands.entity(ui_entity).despawn();
             }
 
-            // Open inventory for this player
-            let ui_entity = spawn_inventory_ui(&mut commands);
-            ui_state.open_for_player = Some(player_entity);
-            ui_state.ui_entity = Some(ui_entity);
+            if let Ok(inventory) = q_inventories.get(player_entity) {
+                let ui_entity = spawn_inventory_ui(
+                    &mut commands,
+                    inventory.capacity,
+                );
+                ui_state.open_for_player = Some(player_entity);
+                ui_state.ui_entity = Some(ui_entity);
+            }
         }
     }
 }
@@ -77,7 +82,7 @@ fn handle_slot_clicks(
     mut selected_slot: ResMut<SelectedSlot>,
     ui_state: Res<InventoryUiState>,
     q_interactions: Query<
-        &Interaction,
+        (Entity, &Interaction),
         (Changed<Interaction>, With<InventorySlot>),
     >,
     q_slots: Query<&InventorySlot>,
@@ -87,27 +92,16 @@ fn handle_slot_clicks(
         return;
     };
 
-    for interaction in q_interactions.iter() {
+    for (slot_entity, interaction) in q_interactions.iter() {
         if *interaction == Interaction::Pressed {
-            // Find which slot was clicked
-            for (entity, slot) in q_slots.iter().enumerate() {
-                if let Ok(slot_interaction) = q_interactions
-                    .get(Entity::from_raw(entity as u32))
-                {
-                    if *slot_interaction == Interaction::Pressed {
-                        // Update selected slot
-                        selected_slot.slot_index =
-                            Some(slot.slot_index);
-                        selected_slot.player_entity =
-                            Some(player_entity);
-                        info!(
-                            "Clicked slot {} for player {:?}",
-                            slot.slot_index + 1,
-                            player_entity
-                        );
-                        break;
-                    }
-                }
+            if let Ok(slot) = q_slots.get(slot_entity) {
+                selected_slot.slot_index = Some(slot.slot_index);
+                selected_slot.player_entity = Some(player_entity);
+                info!(
+                    "Clicked slot {} for player {:?}",
+                    slot.slot_index + 1,
+                    player_entity
+                );
             }
         }
     }
@@ -150,7 +144,7 @@ fn update_inventory_ui(
 
     // Update each slot for this player's inventory
     for (slot, children, mut background_color) in q_slots.iter_mut() {
-        let item_entity = inventory.0.get(slot.slot_index);
+        let item_entity = inventory.items.get(slot.slot_index);
 
         // Update slot background based on selection
         let is_selected =
@@ -166,11 +160,11 @@ fn update_inventory_ui(
 
         // Set background color based on selection and item presence
         *background_color = if is_selected {
-            BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9)) // Blue for selected
+            BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9))
         } else if item_entity.is_some() {
-            BackgroundColor(Color::srgba(0.3, 0.3, 0.3, 0.8)) // Darker for items
+            BackgroundColor(Color::srgba(0.3, 0.3, 0.3, 0.8))
         } else {
-            BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)) // Default for empty
+            BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8))
         };
 
         // Update slot contents based on whether there's an item
@@ -262,11 +256,14 @@ fn debug_inventory_ui(
 
         for (player_entity, inventory) in q_players.iter() {
             info!(
-                "Player {:?} inventory ({} items):",
+                "Player {:?} inventory ({} items, capacity: {}):",
                 player_entity,
-                inventory.0.len()
+                inventory.items.len(),
+                inventory.capacity
             );
-            for (i, &item_entity) in inventory.0.iter().enumerate() {
+            for (i, &item_entity) in
+                inventory.items.iter().enumerate()
+            {
                 if let Ok(item) = q_items.get(item_entity) {
                     let item_name = item_registry
                         .by_id
@@ -310,21 +307,25 @@ fn debug_inventory_ui(
     }
 }
 
-fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
+fn spawn_inventory_ui(
+    commands: &mut Commands,
+    capacity: usize,
+) -> Entity {
     const SLOT_SIZE: f32 = 64.0;
-    const GRID_COLS: usize = 3;
-    const GRID_ROWS: usize = 3;
     const SLOT_GAP: f32 = 4.0;
     const PANEL_PADDING: f32 = 16.0;
 
-    let total_width = (SLOT_SIZE * GRID_COLS as f32)
-        + (SLOT_GAP * (GRID_COLS as f32 - 1.0))
+    // Calculate grid dimensions based on capacity
+    let grid_cols = (capacity as f32).sqrt().ceil() as usize;
+    let grid_rows = (capacity + grid_cols - 1) / grid_cols;
+
+    let total_width = (SLOT_SIZE * grid_cols as f32)
+        + (SLOT_GAP * (grid_cols as f32 - 1.0))
         + (PANEL_PADDING * 2.0);
-    let total_height = (SLOT_SIZE * GRID_ROWS as f32)
-        + (SLOT_GAP * (GRID_ROWS as f32 - 1.0))
+    let total_height = (SLOT_SIZE * grid_rows as f32)
+        + (SLOT_GAP * (grid_rows as f32 - 1.0))
         + (PANEL_PADDING * 2.0)
-        // Extra space for instructions
-        + 40.0;
+        + 40.0; // Instructions
 
     commands
         .spawn((
@@ -372,11 +373,11 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
                     Node {
                         display: Display::Grid,
                         grid_template_columns: RepeatedGridTrack::px(
-                            GRID_COLS as u16,
+                            grid_cols as u16,
                             SLOT_SIZE,
                         ),
                         grid_template_rows: RepeatedGridTrack::px(
-                            GRID_ROWS as u16,
+                            grid_rows as u16,
                             SLOT_SIZE,
                         ),
                         column_gap: Val::Px(SLOT_GAP),
@@ -385,8 +386,7 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
                     },
                 ))
                 .with_children(|grid_parent| {
-                    // Create inventory slots
-                    for slot_index in 0..(GRID_COLS * GRID_ROWS) {
+                    for slot_index in 0..capacity {
                         grid_parent
                             .spawn((
                                 InventorySlot { slot_index },
@@ -400,9 +400,7 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
                                     align_items: AlignItems::Center,
                                     ..default()
                                 },
-                                BackgroundColor(Color::srgba(
-                                    0.2, 0.2, 0.2, 0.8,
-                                )),
+                                BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)),
                                 BorderColor(Color::srgba(0.5, 0.5, 0.5, 1.0)),
                             ))
                             .with_children(|slot_parent| {
@@ -445,8 +443,7 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
                                         position_type: PositionType::Absolute,
                                         width: Val::Percent(100.0),
                                         height: Val::Percent(100.0),
-                                        justify_content:
-                                            JustifyContent::Center,
+                                        justify_content: JustifyContent::Center,
                                         align_items: AlignItems::Center,
                                         ..default()
                                     },

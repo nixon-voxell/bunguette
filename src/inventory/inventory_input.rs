@@ -54,7 +54,7 @@ fn slot_selection_input(
                     q_inventories.get(player_entity)
                 {
                     // Only select slot if it's within inventory bounds and has an item
-                    if i < inventory.0.len() {
+                    if i < inventory.items.len() {
                         selected_slot.slot_index = Some(i);
                         selected_slot.player_entity =
                             Some(player_entity);
@@ -123,7 +123,7 @@ fn drop_input(
         {
             if let Ok(inventory) = q_inventories.get(player_entity) {
                 if let Some(&item_entity) =
-                    inventory.0.get(slot_index)
+                    inventory.items.get(slot_index)
                 {
                     commands.trigger_targets(
                         DropEvent { item: item_entity },
@@ -141,7 +141,7 @@ fn drop_input(
         // Fallback: drop first item from any player's inventory
         for player_entity in q_players.iter() {
             if let Ok(inventory) = q_inventories.get(player_entity) {
-                if let Some(&first_item) = inventory.0.first() {
+                if let Some(&first_item) = inventory.items.first() {
                     commands.trigger_targets(
                         DropEvent { item: first_item },
                         player_entity,
@@ -172,7 +172,7 @@ fn consume_input(
         {
             if let Ok(inventory) = q_inventories.get(player_entity) {
                 if let Some(&item_entity) =
-                    inventory.0.get(slot_index)
+                    inventory.items.get(slot_index)
                 {
                     // Check if the selected item is consumable
                     if q_consumable.get(item_entity).is_ok() {
@@ -200,7 +200,7 @@ fn consume_input(
         for player_entity in q_players.iter() {
             if let Ok(inventory) = q_inventories.get(player_entity) {
                 // Find first consumable item
-                for &item_entity in inventory.0.iter() {
+                for &item_entity in inventory.items.iter() {
                     if q_consumable.get(item_entity).is_ok() {
                         commands.trigger_targets(
                             ConsumeEvent { item: item_entity },
@@ -241,11 +241,11 @@ fn debug_inventory_system(
                     }
                 }
 
-                if inventory.0.is_empty() {
+                if inventory.items.is_empty() {
                     info!("  (empty)");
                 } else {
                     for (i, &item_entity) in
-                        inventory.0.iter().enumerate()
+                        inventory.items.iter().enumerate()
                     {
                         if let Ok(item) = q_items.get(item_entity) {
                             let item_name = item_registry
