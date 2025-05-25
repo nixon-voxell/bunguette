@@ -10,10 +10,10 @@ impl Plugin for InventoryUiPlugin {
         app.add_systems(
             Update,
             (
-                toggle_inventory_system,
-                update_inventory_ui_system
+                toggle_inventory,
+                update_inventory_ui
                     .run_if(resource_exists::<InventoryUiState>),
-                debug_inventory_ui_system,
+                debug_inventory_ui,
             ),
         )
         .init_resource::<InventoryUiState>();
@@ -21,7 +21,7 @@ impl Plugin for InventoryUiPlugin {
 }
 
 /// Toggle inventory UI with Tab key - works for local player or first player found
-fn toggle_inventory_system(
+fn toggle_inventory(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mut ui_state: ResMut<InventoryUiState>,
@@ -71,7 +71,7 @@ fn toggle_inventory_system(
 }
 
 /// Update inventory UI contents for the specific player whose inventory is open
-fn update_inventory_ui_system(
+fn update_inventory_ui(
     ui_state: Res<InventoryUiState>,
     q_inventories: Query<&Inventory, With<InteractionPlayer>>,
     q_items: Query<&Item>,
@@ -171,7 +171,7 @@ fn update_inventory_ui_system(
 }
 
 /// Debug system - shows inventory for all players
-fn debug_inventory_ui_system(
+fn debug_inventory_ui(
     keys: Res<ButtonInput<KeyCode>>,
     ui_state: Res<InventoryUiState>,
     q_players: Query<(Entity, &Inventory), With<InteractionPlayer>>,
@@ -216,16 +216,16 @@ fn debug_inventory_ui_system(
 
 fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
     const SLOT_SIZE: f32 = 64.0;
-    const GRID_COLS: usize = 8;
-    const GRID_ROWS: usize = 4;
+    const GRID_COLS: usize = 3;
+    const GRID_ROWS: usize = 3;
     const SLOT_GAP: f32 = 4.0;
     const PANEL_PADDING: f32 = 16.0;
 
     let total_width = (SLOT_SIZE * GRID_COLS as f32)
-        + (SLOT_GAP * (GRID_COLS - 1) as f32)
+        + (SLOT_GAP * (GRID_COLS as f32 - 1.0))
         + (PANEL_PADDING * 2.0);
     let total_height = (SLOT_SIZE * GRID_ROWS as f32)
-        + (SLOT_GAP * (GRID_ROWS - 1) as f32)
+        + (SLOT_GAP * (GRID_ROWS as f32 - 1.0))
         + (PANEL_PADDING * 2.0);
 
     commands
@@ -268,7 +268,6 @@ fn spawn_inventory_ui(commands: &mut Commands) -> Entity {
                 parent
                     .spawn((
                         InventorySlot { slot_index },
-                        // BackgroundColor(Color::NONE),
                         Node {
                             width: Val::Px(SLOT_SIZE),
                             height: Val::Px(SLOT_SIZE),
