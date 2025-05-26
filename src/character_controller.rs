@@ -4,6 +4,7 @@ use leafwing_input_manager::prelude::*;
 
 use crate::{
     action::{PlayerAction, RequireAction, TargetAction},
+    camera_controller::{QueryCameraA, QueryCameraB},
     player::PlayerType,
 };
 
@@ -186,7 +187,8 @@ fn apply_gravity(
 /// Handles movement and jumping
 fn movement(
     time: Res<Time>,
-    q_camera_transform: Query<&GlobalTransform, With<Camera3d>>,
+    q_camera_a: QueryCameraA<&GlobalTransform>,
+    q_camera_b: QueryCameraB<&GlobalTransform>,
     q_actions: Query<&ActionState<PlayerAction>>,
     mut q_characters: Query<(
         &CharacterController,
@@ -197,18 +199,6 @@ fn movement(
 ) {
     let dt = time.delta_secs_f64() as f32;
 
-    // Get camera transform.
-    let Ok(cam_global_transform) = q_camera_transform.single() else {
-        return;
-    };
-
-    let cam_forward = cam_global_transform.forward();
-    let cam_forward =
-        Vec2::new(cam_forward.x, cam_forward.z).normalize_or_zero();
-    let cam_left = cam_global_transform.left();
-    let cam_left =
-        Vec2::new(cam_left.x, cam_left.z).normalize_or_zero();
-
     for (
         character,
         mut linear_velocity,
@@ -216,6 +206,21 @@ fn movement(
         player_type,
     ) in q_characters.iter_mut()
     {
+        // Get camera transform.
+        let Ok(cam_global_transform) = (match player_type {
+            PlayerType::A => q_camera_a.single(),
+            PlayerType::B => q_camera_b.single(),
+        }) else {
+            return;
+        };
+
+        let cam_forward = cam_global_transform.forward();
+        let cam_forward = Vec2::new(cam_forward.x, cam_forward.z)
+            .normalize_or_zero();
+        let cam_left = cam_global_transform.left();
+        let cam_left =
+            Vec2::new(cam_left.x, cam_left.z).normalize_or_zero();
+
         let Ok(action) = q_actions.get(target_action.get()) else {
             warn!("No `InputMap` found for player: {player_type:?}");
             continue;

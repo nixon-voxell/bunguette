@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::player::{PlayerA, PlayerB, PlayerState, PlayerType};
+use crate::player::{
+    PlayerState, PlayerType, QueryPlayerA, QueryPlayerB,
+};
 
 pub(super) struct ActionPlugin;
 
@@ -24,14 +26,8 @@ fn hookup_target_action(
         (&PlayerType, Entity),
         (With<RequireAction>, Without<TargetAction>),
     >,
-    q_action_a: Query<
-        Entity,
-        (With<InputMap<PlayerAction>>, With<PlayerA>),
-    >,
-    q_action_b: Query<
-        Entity,
-        (With<InputMap<PlayerAction>>, With<PlayerB>),
-    >,
+    q_action_a: QueryPlayerA<Entity, With<InputMap<PlayerAction>>>,
+    q_action_b: QueryPlayerB<Entity, With<InputMap<PlayerAction>>>,
 ) {
     // Nothing to do!
     if q_require_actions.is_empty() {
