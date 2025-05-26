@@ -1,6 +1,5 @@
 use super::{Inventory, Item, ItemRegistry};
 use crate::interaction::InteractionPlayer;
-use crate::inventory::inventory_input::SelectedSlot;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
 
@@ -8,17 +7,20 @@ pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (
-                toggle_inventory,
-                update_inventory_ui
-                    .run_if(resource_exists::<InventoryUiState>),
-                handle_slot_clicks,
-                debug_inventory_ui,
-            ),
-        )
-        .init_resource::<InventoryUiState>();
+        app.add_systems(Startup, spawn_selected_item_ui)
+            .add_systems(
+                Update,
+                (
+                    toggle_inventory,
+                    update_inventory_ui
+                        .run_if(resource_exists::<InventoryUiState>),
+                    update_selected_item_ui,
+                    handle_slot_clicks,
+                    debug_inventory_ui,
+                ),
+            )
+            .init_resource::<InventoryUiState>()
+            .init_resource::<SelectedItemUi>();
     }
 }
 
@@ -79,7 +81,7 @@ fn toggle_inventory(
 
 /// Handle clicking on inventory slots
 fn handle_slot_clicks(
-    mut selected_slot: ResMut<SelectedSlot>,
+    mut q_inventories: Query<&mut Inventory, With<InteractionPlayer>>,
     ui_state: Res<InventoryUiState>,
     q_interactions: Query<
         (Entity, &Interaction),
@@ -95,13 +97,19 @@ fn handle_slot_clicks(
     for (slot_entity, interaction) in q_interactions.iter() {
         if *interaction == Interaction::Pressed {
             if let Ok(slot) = q_slots.get(slot_entity) {
-                selected_slot.slot_index = Some(slot.slot_index);
-                selected_slot.player_entity = Some(player_entity);
-                info!(
-                    "Clicked slot {} for player {:?}",
-                    slot.slot_index + 1,
-                    player_entity
-                );
+                if let Ok(mut inventory) =
+                    q_inventories.get_mut(player_entity)
+                {
+                    if slot.slot_index < inventory.capacity {
+                        inventory.selected_index =
+                            Some(slot.slot_index);
+                        info!(
+                            "Clicked slot {} for player {:?}",
+                            slot.slot_index + 1,
+                            player_entity
+                        );
+                    }
+                }
             }
         }
     }
@@ -110,7 +118,6 @@ fn handle_slot_clicks(
 /// Update inventory UI contents for the specific player whose inventory is open
 fn update_inventory_ui(
     ui_state: Res<InventoryUiState>,
-    selected_slot: Res<SelectedSlot>,
     q_inventories: Query<&Inventory, With<InteractionPlayer>>,
     q_items: Query<&Item>,
     item_registry: Res<ItemRegistry>,
@@ -148,17 +155,8 @@ fn update_inventory_ui(
 
         // Update slot background based on selection
         let is_selected =
-            if let (Some(selected_index), Some(selected_player)) = (
-                selected_slot.slot_index,
-                selected_slot.player_entity,
-            ) {
-                selected_player == player_entity
-                    && selected_index == slot.slot_index
-            } else {
-                false
-            };
+            inventory.selected_index == Some(slot.slot_index);
 
-        // Set background color based on selection and item presence
         *background_color = if is_selected {
             BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9))
         } else if item_entity.is_some() {
@@ -236,7 +234,6 @@ fn update_inventory_ui(
 fn debug_inventory_ui(
     keys: Res<ButtonInput<KeyCode>>,
     ui_state: Res<InventoryUiState>,
-    selected_slot: Res<SelectedSlot>,
     q_players: Query<(Entity, &Inventory), With<InteractionPlayer>>,
     q_items: Query<&Item>,
     item_registry: Res<ItemRegistry>,
@@ -246,20 +243,17 @@ fn debug_inventory_ui(
         info!("=== MULTIPLAYER INVENTORY DEBUG ===");
         info!("UI Open for player: {:?}", ui_state.open_for_player);
         info!("UI Entity: {:?}", ui_state.ui_entity);
-        info!(
-            "Selected slot: {:?} for player: {:?}",
-            selected_slot.slot_index, selected_slot.player_entity
-        );
 
         let player_count = q_players.iter().count();
         info!("Found {} players with inventories:", player_count);
 
         for (player_entity, inventory) in q_players.iter() {
             info!(
-                "Player {:?} inventory ({} items, capacity: {}):",
+                "Player {:?} inventory ({} items, capacity: {}, selected: {:?}):",
                 player_entity,
                 inventory.items.len(),
-                inventory.capacity
+                inventory.capacity,
+                inventory.selected_index
             );
             for (i, &item_entity) in
                 inventory.items.iter().enumerate()
@@ -271,23 +265,12 @@ fn debug_inventory_ui(
                         .map(|meta| meta.name.as_str())
                         .unwrap_or("Unknown");
 
-                    let selected_marker = if let (
-                        Some(slot_index),
-                        Some(selected_player),
-                    ) = (
-                        selected_slot.slot_index,
-                        selected_slot.player_entity,
-                    ) {
-                        if selected_player == player_entity
-                            && slot_index == i
-                        {
+                    let selected_marker =
+                        if inventory.selected_index == Some(i) {
                             " [SELECTED]"
                         } else {
                             ""
-                        }
-                    } else {
-                        ""
-                    };
+                        };
 
                     info!(
                         "  Slot {}: {}x {} (Entity: {:?}){}",
@@ -325,7 +308,7 @@ fn spawn_inventory_ui(
     let total_height = (SLOT_SIZE * grid_rows as f32)
         + (SLOT_GAP * (grid_rows as f32 - 1.0))
         + (PANEL_PADDING * 2.0)
-        + 40.0; // Instructions
+        + 40.0;
 
     commands
         .spawn((
@@ -340,7 +323,6 @@ fn spawn_inventory_ui(
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(PANEL_PADDING)),
                 border: UiRect::all(Val::Px(2.0)),
-                // Center the inventory panel
                 margin: UiRect {
                     left: Val::Px(-total_width / 2.0),
                     top: Val::Px(-total_height / 2.0),
@@ -355,7 +337,7 @@ fn spawn_inventory_ui(
         .with_children(|parent| {
             // Instructions text
             parent.spawn((
-                Text::new("Use 1-9 keys to select slots, Q to drop, C to consume"),
+                Text::new("Alt + Scroll select slots, Q to drop, C to consume"),
                 Node {
                     margin: UiRect::bottom(Val::Px(8.0)),
                     ..default()
@@ -477,6 +459,238 @@ fn spawn_inventory_ui(
         .id()
 }
 
+fn spawn_selected_item_ui(
+    mut commands: Commands,
+    mut selected_ui: ResMut<SelectedItemUi>,
+) {
+    const SLOT_SIZE: f32 = 48.0;
+    const PANEL_PADDING: f32 = 8.0;
+
+    let total_width = SLOT_SIZE + (PANEL_PADDING * 2.0) + 100.0;
+    let total_height = SLOT_SIZE + (PANEL_PADDING * 2.0);
+
+    let ui_entity = commands
+        .spawn((
+            SelectedItemUiRoot,
+            Node {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(20.0),
+                right: Val::Px(20.0),
+                width: Val::Px(total_width),
+                height: Val::Px(total_height),
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                padding: UiRect::all(Val::Px(PANEL_PADDING)),
+                border: UiRect::all(Val::Px(2.0)),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.9)),
+            BorderColor(Color::srgba(0.4, 0.4, 0.4, 1.0)),
+            FocusPolicy::Pass,
+        ))
+        .with_children(|parent| {
+            parent
+                .spawn((
+                    SelectedItemSlot,
+                    Node {
+                        width: Val::Px(SLOT_SIZE),
+                        height: Val::Px(SLOT_SIZE),
+                        border: UiRect::all(Val::Px(1.0)),
+                        position_type: PositionType::Relative,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        margin: UiRect::right(Val::Px(8.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)),
+                    BorderColor(Color::srgba(0.5, 0.5, 0.5, 1.0)),
+                ))
+                .with_children(|slot_parent| {
+                    slot_parent.spawn((
+                        ImageNode {
+                            color: Color::NONE,
+                            ..default()
+                        },
+                        BackgroundColor(Color::NONE),
+                        Node {
+                            width: Val::Percent(90.0),
+                            height: Val::Percent(90.0),
+                            position_type: PositionType::Absolute,
+                            ..default()
+                        },
+                    ));
+
+                    slot_parent.spawn((
+                        ItemNameText,
+                        Text::new(""),
+                        Node {
+                            position_type: PositionType::Absolute,
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(100.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        TextFont {
+                            font_size: 10.0,
+                            ..default()
+                        },
+                    ));
+
+                    slot_parent.spawn((
+                        QuantityText,
+                        Text::new(""),
+                        Node {
+                            position_type: PositionType::Absolute,
+                            bottom: Val::Px(2.0),
+                            right: Val::Px(2.0),
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        TextFont {
+                            font_size: 12.0,
+                            ..default()
+                        },
+                    ));
+                });
+
+            parent.spawn((
+                SelectedItemName,
+                Text::new(""),
+                Node {
+                    align_self: AlignSelf::Center,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+            ));
+        })
+        .id();
+
+    selected_ui.entity = Some(ui_entity);
+}
+
+fn update_selected_item_ui(
+    q_players: Query<(Entity, &Inventory), With<InteractionPlayer>>,
+    q_items: Query<&Item>,
+    item_registry: Res<ItemRegistry>,
+    selected_ui: Res<SelectedItemUi>,
+    q_ui_nodes: Query<&Children, With<SelectedItemUiRoot>>,
+    mut q_images: Query<&mut ImageNode>,
+    mut q_item_name_text: Query<
+        &mut Text,
+        (
+            With<ItemNameText>,
+            Without<SelectedItemName>,
+            Without<QuantityText>,
+        ),
+    >,
+    mut q_quantity_text: Query<
+        &mut Text,
+        (
+            With<QuantityText>,
+            Without<ItemNameText>,
+            Without<SelectedItemName>,
+        ),
+    >,
+    mut q_selected_name: Query<
+        &mut Text,
+        (
+            With<SelectedItemName>,
+            Without<ItemNameText>,
+            Without<QuantityText>,
+        ),
+    >,
+) {
+    let Some(ui_entity) = selected_ui.entity else {
+        return;
+    };
+
+    for (_player_entity, inventory) in q_players.iter() {
+        if let Ok(children) = q_ui_nodes.get(ui_entity) {
+            let item_entity = inventory
+                .selected_index
+                .and_then(|idx| inventory.items.get(idx));
+
+            for child in children.iter() {
+                if let Ok(mut image_node) = q_images.get_mut(child) {
+                    if let Some(&item_entity) = item_entity {
+                        if let Ok(item) = q_items.get(item_entity) {
+                            if let Some(icon_handle) =
+                                item_registry.icons.get(&item.id)
+                            {
+                                image_node.image =
+                                    icon_handle.clone();
+                            } else {
+                                image_node.image = Handle::default();
+                            }
+                        }
+                    } else {
+                        image_node.image = Handle::default();
+                    }
+                }
+
+                if let Ok(mut text) = q_item_name_text.get_mut(child)
+                {
+                    if let Some(&item_entity) = item_entity {
+                        if let Ok(item) = q_items.get(item_entity) {
+                            let item_name = item_registry
+                                .by_id
+                                .get(&item.id)
+                                .map(|m| m.name.as_str())
+                                .unwrap_or("Unknown");
+                            if item_registry
+                                .icons
+                                .get(&item.id)
+                                .is_none()
+                            {
+                                text.0 = item_name.to_string();
+                            } else {
+                                text.0 = String::new();
+                            }
+                        }
+                    } else {
+                        text.0 = String::new();
+                    }
+                }
+
+                if let Ok(mut text) = q_quantity_text.get_mut(child) {
+                    if let Some(&item_entity) = item_entity {
+                        if let Ok(item) = q_items.get(item_entity) {
+                            if item.quantity > 1 {
+                                text.0 = item.quantity.to_string();
+                            } else {
+                                text.0 = String::new();
+                            }
+                        }
+                    } else {
+                        text.0 = String::new();
+                    }
+                }
+
+                if let Ok(mut text) = q_selected_name.get_mut(child) {
+                    if let Some(&item_entity) = item_entity {
+                        if let Ok(item) = q_items.get(item_entity) {
+                            let item_name = item_registry
+                                .by_id
+                                .get(&item.id)
+                                .map(|m| m.name.as_str())
+                                .unwrap_or("Unknown");
+                            text.0 = item_name.to_string();
+                        }
+                    } else {
+                        text.0 = "None".to_string();
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 struct InventoryUiState {
     // Track which player's inventory is currently open
@@ -484,8 +698,19 @@ struct InventoryUiState {
     ui_entity: Option<Entity>,
 }
 
+#[derive(Resource, Default)]
+struct SelectedItemUi {
+    entity: Option<Entity>,
+}
+
 #[derive(Component)]
 struct InventoryUiRoot;
+
+#[derive(Component)]
+struct SelectedItemUiRoot;
+
+#[derive(Component)]
+struct SelectedItemSlot;
 
 #[derive(Component)]
 struct InventorySlot {
@@ -498,8 +723,8 @@ struct ItemNameText;
 #[derive(Component)]
 struct QuantityText;
 
-// Add a component to identify the local player (for single-screen multiplayer)
-// or use networking player ID for networked multiplayer
-// TODO: Implement proper multiplayer player identification
+#[derive(Component)]
+struct SelectedItemName;
+
 #[derive(Component)]
 pub struct LocalPlayer;

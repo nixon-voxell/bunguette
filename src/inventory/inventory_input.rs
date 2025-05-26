@@ -3,6 +3,7 @@ use super::{
     ItemRegistry, PickupEvent, Pickupable,
 };
 use crate::interaction::{InteractionPlayer, MarkedItem};
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 
 pub struct InventoryInputPlugin;
@@ -16,73 +17,68 @@ impl Plugin for InventoryInputPlugin {
                 drop_input,
                 consume_input,
                 debug_inventory_system,
-                slot_selection_input,
+                cycle_selected_item,
             ),
-        )
-        .init_resource::<SelectedSlot>();
+        );
     }
 }
 
-/// Handles slot selection input (number keys 1-9)
-fn slot_selection_input(
-    mut selected_slot: ResMut<SelectedSlot>,
+fn cycle_selected_item(
     keys: Res<ButtonInput<KeyCode>>,
+    mut scroll_events: EventReader<MouseWheel>,
+    mut q_inventories: Query<&mut Inventory, With<InteractionPlayer>>,
     q_players: Query<Entity, With<InteractionPlayer>>,
-    q_inventories: Query<&Inventory>,
 ) {
-    // Map number keys to slot indices (1-9 maps to slots 0-8)
-    let slot_keys = [
-        KeyCode::Digit1,
-        KeyCode::Digit2,
-        KeyCode::Digit3,
-        KeyCode::Digit4,
-        KeyCode::Digit5,
-        KeyCode::Digit6,
-        KeyCode::Digit7,
-        KeyCode::Digit8,
-        KeyCode::Digit9,
-    ];
+    // Check if Alt is held down
+    let alt_held = keys.pressed(KeyCode::AltLeft)
+        || keys.pressed(KeyCode::AltRight);
 
-    // Check for number key presses
-    for (i, &key) in slot_keys.iter().enumerate() {
-        if keys.just_pressed(key) {
-            // Find the appropriate player (prefer local player or use first player)
-            let player_entity = q_players.iter().next();
-
-            if let Some(player_entity) = player_entity {
-                if let Ok(inventory) =
-                    q_inventories.get(player_entity)
-                {
-                    // Only select slot if it's within inventory bounds and has an item
-                    if i < inventory.items.len() {
-                        selected_slot.slot_index = Some(i);
-                        selected_slot.player_entity =
-                            Some(player_entity);
-                        info!(
-                            "Selected slot {} for player {:?}",
-                            i + 1,
-                            player_entity
-                        );
-                    } else {
-                        // Clear selection if slot is empty or out of bounds
-                        selected_slot.slot_index = None;
-                        selected_slot.player_entity = None;
-                        info!(
-                            "Deselected slot (slot {} is empty or invalid)",
-                            i + 1
-                        );
-                    }
-                }
-            }
-            break;
-        }
+    if !alt_held {
+        return;
     }
 
-    // Clear selection with Escape key
-    if keys.just_pressed(KeyCode::Escape) {
-        selected_slot.slot_index = None;
-        selected_slot.player_entity = None;
-        info!("Cleared slot selection");
+    let player_entity = q_players.iter().next();
+
+    if let Some(player_entity) = player_entity {
+        if let Ok(mut inventory) =
+            q_inventories.get_mut(player_entity)
+        {
+            if inventory.items.is_empty() {
+                inventory.selected_index = None;
+                return;
+            }
+
+            let current = inventory.selected_index.unwrap_or(0);
+            let max_index = inventory.items.len().saturating_sub(1);
+
+            // Handle scroll events
+            for event in scroll_events.read() {
+                let scroll_delta = match event.unit {
+                    MouseScrollUnit::Line => event.y,
+                    MouseScrollUnit::Pixel => event.y / 100.0, // Convert pixels to reasonable line units
+                };
+
+                let new_index = if scroll_delta > 0.0 {
+                    // Scroll up - go to previous item
+                    if current == 0 { max_index } else { current - 1 }
+                } else if scroll_delta < 0.0 {
+                    // Scroll down - go to next item
+                    if current >= max_index { 0 } else { current + 1 }
+                } else {
+                    current // No change if scroll delta is 0
+                };
+
+                if new_index != current {
+                    inventory.selected_index = Some(new_index);
+                    info!(
+                        "Selected item slot {} for player {:?}",
+                        new_index + 1,
+                        player_entity
+                    );
+                    break; // Only process one scroll event per frame
+                }
+            }
+        }
     }
 }
 
@@ -112,35 +108,27 @@ fn pickup_input(
 fn drop_input(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    selected_slot: Res<SelectedSlot>,
     q_players: Query<Entity, With<InteractionPlayer>>,
     q_inventories: Query<&Inventory>,
 ) {
     if keys.just_pressed(KeyCode::KeyQ) {
-        // If we have a selected slot, use that player and slot
-        if let (Some(slot_index), Some(player_entity)) =
-            (selected_slot.slot_index, selected_slot.player_entity)
-        {
-            if let Ok(inventory) = q_inventories.get(player_entity) {
-                if let Some(&item_entity) =
-                    inventory.items.get(slot_index)
-                {
-                    commands.trigger_targets(
-                        DropEvent { item: item_entity },
-                        player_entity,
-                    );
-                    info!(
-                        "Dropped item from selected slot {}",
-                        slot_index + 1
-                    );
-                    return;
-                }
-            }
-        }
-
-        // Fallback: drop first item from any player's inventory
         for player_entity in q_players.iter() {
             if let Ok(inventory) = q_inventories.get(player_entity) {
+                if let Some(slot_index) = inventory.selected_index {
+                    if let Some(&item_entity) =
+                        inventory.items.get(slot_index)
+                    {
+                        commands.trigger_targets(
+                            DropEvent { item: item_entity },
+                            player_entity,
+                        );
+                        info!(
+                            "Dropped item from selected slot {}",
+                            slot_index + 1
+                        );
+                        return;
+                    }
+                }
                 if let Some(&first_item) = inventory.items.first() {
                     commands.trigger_targets(
                         DropEvent { item: first_item },
@@ -160,46 +148,36 @@ fn drop_input(
 fn consume_input(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
-    selected_slot: Res<SelectedSlot>,
     q_players: Query<Entity, With<InteractionPlayer>>,
     q_inventories: Query<&Inventory>,
     q_consumable: Query<&Consumable>,
 ) {
     if keys.just_pressed(KeyCode::KeyC) {
-        // If we have a selected slot, try to consume that specific item
-        if let (Some(slot_index), Some(player_entity)) =
-            (selected_slot.slot_index, selected_slot.player_entity)
-        {
-            if let Ok(inventory) = q_inventories.get(player_entity) {
-                if let Some(&item_entity) =
-                    inventory.items.get(slot_index)
-                {
-                    // Check if the selected item is consumable
-                    if q_consumable.get(item_entity).is_ok() {
-                        commands.trigger_targets(
-                            ConsumeEvent { item: item_entity },
-                            player_entity,
-                        );
-                        info!(
-                            "Consumed item from selected slot {}",
-                            slot_index + 1
-                        );
-                        return;
-                    } else {
-                        info!(
-                            "Selected item in slot {} is not consumable",
-                            slot_index + 1
-                        );
-                        return;
-                    }
-                }
-            }
-        }
-
-        // Fallback: consume first consumable item from any player's inventory
         for player_entity in q_players.iter() {
             if let Ok(inventory) = q_inventories.get(player_entity) {
-                // Find first consumable item
+                if let Some(slot_index) = inventory.selected_index {
+                    if let Some(&item_entity) =
+                        inventory.items.get(slot_index)
+                    {
+                        if q_consumable.get(item_entity).is_ok() {
+                            commands.trigger_targets(
+                                ConsumeEvent { item: item_entity },
+                                player_entity,
+                            );
+                            info!(
+                                "Consumed item from selected slot {}",
+                                slot_index + 1
+                            );
+                            return;
+                        } else {
+                            info!(
+                                "Selected item in slot {} is not consumable",
+                                slot_index + 1
+                            );
+                            return;
+                        }
+                    }
+                }
                 for &item_entity in inventory.items.iter() {
                     if q_consumable.get(item_entity).is_ok() {
                         commands.trigger_targets(
@@ -209,7 +187,7 @@ fn consume_input(
                         info!(
                             "Consumed first consumable item (no slot selected)"
                         );
-                        return; // Only consume one item at a time
+                        return;
                     }
                 }
             }
@@ -220,7 +198,6 @@ fn consume_input(
 /// Debug system to show inventory contents (I key)
 fn debug_inventory_system(
     keys: Res<ButtonInput<KeyCode>>,
-    selected_slot: Res<SelectedSlot>,
     q_players: Query<Entity, With<InteractionPlayer>>,
     q_inventories: Query<&Inventory>,
     q_items: Query<&Item>,
@@ -230,16 +207,11 @@ fn debug_inventory_system(
         for player_entity in q_players.iter() {
             if let Ok(inventory) = q_inventories.get(player_entity) {
                 info!("=== Player {:?} Inventory ===", player_entity);
-
-                // Show selected slot info
-                if let (Some(slot_index), Some(selected_player)) = (
-                    selected_slot.slot_index,
-                    selected_slot.player_entity,
-                ) {
-                    if selected_player == player_entity {
-                        info!("  Selected slot: {}", slot_index + 1);
-                    }
-                }
+                info!("  Capacity: {}", inventory.capacity);
+                info!(
+                    "  Selected slot: {:?}",
+                    inventory.selected_index.map(|i| i + 1)
+                );
 
                 if inventory.items.is_empty() {
                     info!("  (empty)");
@@ -254,20 +226,11 @@ fn debug_inventory_system(
                                 .map(|meta| meta.name.as_str())
                                 .unwrap_or("Unknown Item");
 
-                            let selected_marker = if let (
-                                Some(slot_index),
-                                Some(selected_player),
-                            ) = (
-                                selected_slot.slot_index,
-                                selected_slot.player_entity,
-                            ) {
-                                if selected_player == player_entity
-                                    && slot_index == i
-                                {
-                                    " [SELECTED]"
-                                } else {
-                                    ""
-                                }
+                            let selected_marker = if inventory
+                                .selected_index
+                                == Some(i)
+                            {
+                                " [SELECTED]"
                             } else {
                                 ""
                             };
@@ -295,11 +258,4 @@ fn debug_inventory_system(
             }
         }
     }
-}
-
-/// Resource to track which inventory slot is currently selected
-#[derive(Resource, Default)]
-pub struct SelectedSlot {
-    pub slot_index: Option<usize>,
-    pub player_entity: Option<Entity>,
 }

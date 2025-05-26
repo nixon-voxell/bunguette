@@ -46,6 +46,11 @@ fn handle_item_added_to_inventory(
         {
             if !inventory.items.contains(&item_entity) {
                 inventory.items.push(item_entity);
+                if inventory.selected_index.is_none()
+                    && !inventory.items.is_empty()
+                {
+                    inventory.selected_index = Some(0);
+                }
             }
         }
     }
@@ -65,6 +70,16 @@ fn handle_item_removed_from_inventory(
             inventory.items.iter().position(|&e| e == item_entity)
         {
             inventory.items.remove(pos);
+            if let Some(selected) = inventory.selected_index {
+                if selected == pos && !inventory.items.is_empty() {
+                    inventory.selected_index =
+                        Some(selected.min(inventory.items.len() - 1));
+                } else if selected >= inventory.items.len()
+                    || inventory.items.is_empty()
+                {
+                    inventory.selected_index = None;
+                }
+            }
             break;
         }
     }
@@ -94,7 +109,8 @@ fn handle_pickup(
     // Ensure player has an inventory
     if q_inventories.get(player_entity).is_err() {
         commands.entity(player_entity).insert(Inventory {
-            capacity: 9,
+            capacity: 9, // Default capacity
+            selected_index: None,
             ..Default::default()
         });
         // Early return since we just inserted the inventory and need to wait for next frame
@@ -136,7 +152,7 @@ fn handle_pickup(
     // Check if inventory is full and item can be added
     let mut can_add = false;
     if inventory.items.len() < inventory.capacity {
-        can_add = true; // Space for a new slot
+        can_add = true;
     } else if item_meta.stackable {
         // Check if item can stack with existing items
         let stackable_candidates: Vec<Entity> = inventory
@@ -218,7 +234,7 @@ fn handle_pickup(
                         );
                     } else {
                         // Partial stack, reduce the picked up item's quantity
-                        drop(existing_item); // Release the mutable borrow
+                        drop(existing_item);
                         if let Ok(mut picked_item) =
                             q_items.get_mut(item_entity)
                         {
@@ -383,6 +399,7 @@ pub struct ItemOf(pub Entity);
 pub struct Inventory {
     pub items: Vec<Entity>,
     pub capacity: usize,
+    pub selected_index: Option<usize>,
 }
 
 /// Marks an item as pickupable from the world
