@@ -34,6 +34,15 @@ impl Plugin for MovementPlugin {
     }
 }
 
+#[derive(Deref)]
+struct GroundCastShape(Collider);
+
+impl Default for GroundCastShape {
+    fn default() -> Self {
+        Self(Collider::sphere(0.15))
+    }
+}
+
 /// Check grounded state by raycasting downwards.
 fn check_grounded(
     mut q_characters: Query<(
@@ -43,12 +52,11 @@ fn check_grounded(
         &mut IsGrounded,
     )>,
     spatial_query: SpatialQuery,
+    cast_shape: Local<GroundCastShape>,
 ) {
     const MAX_DIST: f32 = 0.2;
     const SHAPE_CAST_CONFIG: ShapeCastConfig =
         ShapeCastConfig::from_max_distance(MAX_DIST);
-
-    let shape = Collider::sphere(0.2);
 
     for (entity, global_transform, character, mut is_grounded) in
         q_characters.iter_mut()
@@ -57,14 +65,13 @@ fn check_grounded(
 
         let ray_origin = char_pos;
         let ray_direction = Dir3::NEG_Y;
-        // let max_distance = 1.0;
 
         // Exclude the character's own entity from the raycast
         let filter = SpatialQueryFilter::default()
             .with_excluded_entities([entity]);
 
         if let Some(hit) = spatial_query.cast_shape(
-            &shape,
+            &cast_shape,
             ray_origin,
             Quat::IDENTITY,
             ray_direction,
