@@ -15,9 +15,11 @@ impl Plugin for MovementPlugin {
         app.add_systems(
             Update,
             (
-                apply_gravity,
                 check_grounded,
+                apply_gravity,
                 movement,
+                jump,
+                rotate_to_velocity,
                 movement_damping,
             )
                 .chain(),
@@ -34,15 +36,19 @@ impl Plugin for MovementPlugin {
 
 /// Check grounded state by raycasting downwards.
 fn check_grounded(
-    mut spatial_query: SpatialQuery,
     mut q_characters: Query<(
         Entity,
         &GlobalTransform,
         &CharacterController,
         &mut IsGrounded,
     )>,
+    spatial_query: SpatialQuery,
 ) {
-    spatial_query.update_pipeline();
+    const MAX_DIST: f32 = 0.2;
+    const SHAPE_CAST_CONFIG: ShapeCastConfig =
+        ShapeCastConfig::from_max_distance(MAX_DIST);
+
+    let shape = Collider::sphere(0.2);
 
     for (entity, global_transform, character, mut is_grounded) in
         q_characters.iter_mut()
@@ -51,20 +57,21 @@ fn check_grounded(
 
         let ray_origin = char_pos;
         let ray_direction = Dir3::NEG_Y;
-        let max_distance = 1.5;
+        // let max_distance = 1.0;
 
         // Exclude the character's own entity from the raycast
         let filter = SpatialQueryFilter::default()
             .with_excluded_entities([entity]);
 
-        if let Some(hit) = spatial_query.cast_ray(
+        if let Some(hit) = spatial_query.cast_shape(
+            &shape,
             ray_origin,
+            Quat::IDENTITY,
             ray_direction,
-            max_distance,
-            true,
+            &SHAPE_CAST_CONFIG,
             &filter,
         ) {
-            let slope_angle = hit.normal.angle_between(Vec3::Y);
+            let slope_angle = hit.normal1.angle_between(Vec3::Y);
 
             // Check if the normal is valid and surface is walkable
             if slope_angle.is_finite() {
@@ -79,14 +86,87 @@ fn check_grounded(
     }
 }
 
+fn jump(
+    mut q_characters: Query<(
+        &mut LinearVelocity,
+        &mut IsGrounded,
+        &CharacterController,
+        &TargetAction,
+    )>,
+    q_actions: Query<&ActionState<PlayerAction>>,
+) {
+    for (
+        mut linear_velocity,
+        mut is_grounded,
+        character,
+        target_action,
+    ) in q_characters.iter_mut()
+    {
+        let Ok(action) = q_actions.get(target_action.get()) else {
+            continue;
+        };
+        info!("jumpable...");
+
+        if is_grounded.0 && action.just_pressed(&PlayerAction::Jump) {
+            info!("jump!");
+            linear_velocity.0.y = character.jump_impulse;
+            is_grounded.0 = false;
+        }
+    }
+}
+
+fn rotate_to_velocity(
+    mut q_characters: Query<
+        (&mut Rotation, &LinearVelocity, &TargetAction),
+        With<CharacterController>,
+    >,
+    q_actions: Query<&ActionState<PlayerAction>>,
+    time: Res<Time>,
+) {
+    const ROTATION_RATE: f32 = 10.0;
+    let dt = time.delta_secs();
+
+    for (mut rotation, linear_velocity, target_action) in
+        q_characters.iter_mut()
+    {
+        let Ok(action) = q_actions.get(target_action.get()) else {
+            continue;
+        };
+
+        // Rotate during movement only.
+        if action
+            .clamped_axis_pair(&PlayerAction::Move)
+            .length_squared()
+            <= f32::EPSILON
+        {
+            continue;
+        }
+
+        let Some(direction) =
+            Vec2::new(linear_velocity.x, linear_velocity.z)
+                .try_normalize()
+        else {
+            continue;
+        };
+
+        let target_rotation = Quat::from_rotation_y(f32::atan2(
+            -direction.x,
+            -direction.y,
+        ));
+
+        rotation.0 =
+            rotation.0.slerp(target_rotation, dt * ROTATION_RATE);
+    }
+}
+
 /// Applies gravity to vertical velocity
 fn apply_gravity(
-    time: Res<Time>,
     mut q_characters: Query<(
         &mut LinearVelocity,
         &CharacterController,
         &IsGrounded,
     )>,
+    time: Res<Time>,
 ) {
     let dt = time.delta_secs();
     for (mut linear_velocity, character, is_grounded) in
@@ -105,8 +185,6 @@ fn movement(
     q_actions: Query<&ActionState<PlayerAction>>,
     mut q_characters: Query<(
         &CharacterController,
-        &mut CharacterVelocity,
-        &mut Transform,
         &mut LinearVelocity,
         &TargetAction,
         &PlayerType,
@@ -128,8 +206,6 @@ fn movement(
 
     for (
         character,
-        mut character_velocity,
-        mut transform,
         mut linear_velocity,
         target_action,
         player_type,
@@ -147,7 +223,6 @@ fn movement(
             // Ignore movement when it's negligible.
             continue;
         }
-        info!("{movement}");
 
         // Compute yaw directly from that vector: atan2(x, z)
         let world_move = (cam_forward * movement.y)
@@ -155,10 +230,10 @@ fn movement(
         let world_move = Vec3::new(world_move.x, 0.0, world_move.y);
 
         // Compute yaw and apply offset based on model orientation
-        let yaw = world_move.y.atan2(world_move.x);
+        // let yaw = world_move.y.atan2(world_move.x);
 
         // Rotate to face movement direction
-        transform.rotation = Quat::from_rotation_y(yaw);
+        // transform.rotation = Quat::from_rotation_y(yaw);
 
         // Only allow sprinting if grounded
         // let can_sprint = *sprint && is_grounded.0;
@@ -183,9 +258,6 @@ fn movement(
             linear_velocity.0.x = clamped.x;
             linear_velocity.0.z = clamped.y;
         }
-
-        // Synchronize controller velocity
-        character_velocity.0 = linear_velocity.0;
     }
 }
 
@@ -326,7 +398,7 @@ fn kinematic_controller_collisions(
 
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
-#[require(CharacterVelocity, IsGrounded, RequireAction)]
+#[require(IsGrounded, RequireAction)]
 #[reflect(Component)]
 pub struct CharacterController {
     /// Acceleration applied during moveme movement.
@@ -343,16 +415,4 @@ pub struct CharacterController {
 }
 
 #[derive(Component, Deref, DerefMut, Default)]
-pub struct CharacterVelocity(pub Vec3);
-
-#[derive(Component, Deref, DerefMut, Default)]
 pub struct IsGrounded(pub bool);
-
-//     for (ctl, _, mut is_grounded, _, mut linvel) in
-//         query.iter_mut()
-//     {
-//         if is_grounded.0 {
-//             linvel.0.y = ctl.jump_impulse;
-//             is_grounded.0 = false;
-//         }
-//     }
