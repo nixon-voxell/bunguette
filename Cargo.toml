@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "0.16.0", features = ["configurable_error_handler"] }
+bevy = { version = "0.16.0", features = ["configurable_error_handler", "jpeg"] }
 bevy_framepace = "0.19.1"
 bevy_skein = "0.2.1"
 avian3d = "0.3.0"

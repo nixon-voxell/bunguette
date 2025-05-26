@@ -105,10 +105,8 @@ fn jump(
         let Ok(action) = q_actions.get(target_action.get()) else {
             continue;
         };
-        info!("jumpable...");
 
         if is_grounded.0 && action.just_pressed(&PlayerAction::Jump) {
-            info!("jump!");
             linear_velocity.0.y = character.jump_impulse;
             is_grounded.0 = false;
         }
