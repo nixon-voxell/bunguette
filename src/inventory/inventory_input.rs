@@ -36,6 +36,7 @@ fn cycle_selected_item(
     mut scroll_events: EventReader<MouseWheel>,
     mut q_inventories: Query<&mut Inventory, With<InteractionPlayer>>,
     q_players: Query<Entity, With<InteractionPlayer>>,
+    q_items: Query<&Item>,
 ) {
     // Check if Alt is held down
     // TODO: Use PlayerAction instead of KeyCode (Implement InventoryModifier)
@@ -52,32 +53,64 @@ fn cycle_selected_item(
         if let Ok(mut inventory) =
             q_inventories.get_mut(player_entity)
         {
+            // If inventory is empty, set selected_index to None and return
             if inventory.items.is_empty() {
                 inventory.selected_index = None;
                 return;
             }
 
-            let current = inventory.selected_index.unwrap_or(0);
-            let max_index = inventory.items.len().saturating_sub(1);
+            // Get indices of valid items (non-PLACEHOLDER with Item component)
+            let valid_indices: Vec<usize> = inventory
+                .items
+                .iter()
+                .enumerate()
+                .filter(|&(_, &item_entity)| {
+                    item_entity != Entity::PLACEHOLDER
+                        && q_items.get(item_entity).is_ok()
+                })
+                .map(|(i, _)| i)
+                .collect();
+
+            if valid_indices.is_empty() {
+                inventory.selected_index = None;
+                return;
+            }
 
             // Handle scroll events
             for event in scroll_events.read() {
                 let scroll_delta = match event.unit {
                     MouseScrollUnit::Line => event.y,
-                    MouseScrollUnit::Pixel => event.y / 100.0, // Convert pixels to reasonable line units
+                    MouseScrollUnit::Pixel => event.y / 100.0,
                 };
 
-                let new_index = if scroll_delta > 0.0 {
-                    // Scroll up - go to previous item
-                    if current == 0 { max_index } else { current - 1 }
+                let current = inventory.selected_index.unwrap_or(0);
+                let current_valid_pos = valid_indices
+                    .iter()
+                    .position(|&i| i == current)
+                    .unwrap_or(0);
+
+                let new_valid_pos = if scroll_delta > 0.0 {
+                    // Scroll up - go to previous valid item
+                    if current_valid_pos == 0 {
+                        valid_indices.len() - 1
+                    } else {
+                        current_valid_pos - 1
+                    }
                 } else if scroll_delta < 0.0 {
-                    // Scroll down - go to next item
-                    if current >= max_index { 0 } else { current + 1 }
+                    // Scroll down - go to next valid item
+                    if current_valid_pos >= valid_indices.len() - 1 {
+                        0
+                    } else {
+                        current_valid_pos + 1
+                    }
                 } else {
-                    current // No change if scroll delta is 0
+                    current_valid_pos // No change if scroll delta is 0
                 };
 
-                if new_index != current {
+                let new_index = valid_indices[new_valid_pos];
+                if new_index != current
+                    || inventory.selected_index.is_none()
+                {
                     inventory.selected_index = Some(new_index);
                     info!(
                         "Selected item slot {} for player {:?}",
@@ -86,6 +119,18 @@ fn cycle_selected_item(
                     );
                     break; // Only process one scroll event per frame
                 }
+            }
+
+            // Ensure selected_index is valid if not set
+            if inventory.selected_index.is_none()
+                && !valid_indices.is_empty()
+            {
+                inventory.selected_index = Some(valid_indices[0]);
+                info!(
+                    "Initialized selected item slot {} for player {:?}",
+                    valid_indices[0] + 1,
+                    player_entity
+                );
             }
         }
     }

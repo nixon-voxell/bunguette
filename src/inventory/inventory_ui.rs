@@ -120,57 +120,68 @@ fn update_inventory_ui(
         let is_selected =
             inventory.selected_index == Some(slot.slot_index);
 
+        // Treat Entity::PLACEHOLDER or None as an empty slot
+        let is_empty = item_entity.is_none()
+            || item_entity == Some(&Entity::PLACEHOLDER)
+            || item_entity
+                .and_then(|&e| q_items.get(e).ok())
+                .is_none();
+
+        // Update slot background
         *background_color = if is_selected {
             BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9))
-        } else if item_entity.is_some() {
+        } else if !is_empty {
             BackgroundColor(Color::srgba(0.3, 0.3, 0.3, 0.8))
         } else {
             BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8))
         };
 
-        // Update slot contents based on whether there's an item
-        if let Some(&item_entity) = item_entity {
-            if let Ok(item) = q_items.get(item_entity) {
-                let item_meta = item_registry.by_id.get(&item.id);
-                let item_name = item_meta
-                    .map(|m| m.name.as_str())
-                    .unwrap_or("Unknown");
+        if !is_empty {
+            if let Some(&item_entity) = item_entity {
+                if let Ok(item) = q_items.get(item_entity) {
+                    let item_meta = item_registry.by_id.get(&item.id);
+                    let item_name = item_meta
+                        .map(|m| m.name.as_str())
+                        .unwrap_or("Unknown");
 
-                // Update children components
-                for child in children.iter() {
-                    // Try to update image
-                    if let Ok(mut image_node) =
-                        q_images.get_mut(child)
-                    {
-                        if let Some(icon_handle) =
-                            item_registry.icons.get(&item.id)
+                    // Update children components
+                    for child in children.iter() {
+                        // Try to update image
+                        if let Ok(mut image_node) =
+                            q_images.get_mut(child)
                         {
-                            image_node.image = icon_handle.clone();
-                        } else {
-                            image_node.image = Handle::default();
+                            if let Some(icon_handle) =
+                                item_registry.icons.get(&item.id)
+                            {
+                                image_node.image =
+                                    icon_handle.clone();
+                            } else {
+                                image_node.image = Handle::default();
+                            }
                         }
-                    }
-
-                    // Try to update item name text (fallback when no icon)
-                    if let Ok(mut text) =
-                        q_item_name_text.get_mut(child)
-                    {
-                        if item_registry.icons.get(&item.id).is_none()
+                        if let Ok(mut text) =
+                            q_item_name_text.get_mut(child)
                         {
-                            text.0 = item_name.to_string();
-                        } else {
-                            text.0 = String::new();
+                            if item_registry
+                                .icons
+                                .get(&item.id)
+                                .is_none()
+                            {
+                                text.0 = item_name.to_string();
+                            } else {
+                                text.0 = String::new();
+                            }
                         }
-                    }
 
-                    // Try to update quantity text
-                    if let Ok(mut text) =
-                        q_quantity_text.get_mut(child)
-                    {
-                        if item.quantity > 1 {
-                            text.0 = item.quantity.to_string();
-                        } else {
-                            text.0 = String::new();
+                        // Try to update quantity text
+                        if let Ok(mut text) =
+                            q_quantity_text.get_mut(child)
+                        {
+                            if item.quantity > 1 {
+                                text.0 = item.quantity.to_string();
+                            } else {
+                                text.0 = String::new();
+                            }
                         }
                     }
                 }
