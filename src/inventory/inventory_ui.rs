@@ -15,7 +15,6 @@ impl Plugin for InventoryUiPlugin {
                     update_inventory_ui
                         .run_if(resource_exists::<InventoryUiState>),
                     update_selected_item_ui,
-                    handle_slot_clicks,
                     debug_inventory_ui,
                 ),
             )
@@ -74,42 +73,6 @@ fn toggle_inventory(
                 );
                 ui_state.open_for_player = Some(player_entity);
                 ui_state.ui_entity = Some(ui_entity);
-            }
-        }
-    }
-}
-
-/// Handle clicking on inventory slots
-fn handle_slot_clicks(
-    mut q_inventories: Query<&mut Inventory, With<InteractionPlayer>>,
-    ui_state: Res<InventoryUiState>,
-    q_interactions: Query<
-        (Entity, &Interaction),
-        (Changed<Interaction>, With<InventorySlot>),
-    >,
-    q_slots: Query<&InventorySlot>,
-) {
-    // Only handle clicks if inventory UI is open
-    let Some(player_entity) = ui_state.open_for_player else {
-        return;
-    };
-
-    for (slot_entity, interaction) in q_interactions.iter() {
-        if *interaction == Interaction::Pressed {
-            if let Ok(slot) = q_slots.get(slot_entity) {
-                if let Ok(mut inventory) =
-                    q_inventories.get_mut(player_entity)
-                {
-                    if slot.slot_index < inventory.capacity {
-                        inventory.selected_index =
-                            Some(slot.slot_index);
-                        info!(
-                            "Clicked slot {} for player {:?}",
-                            slot.slot_index + 1,
-                            player_entity
-                        );
-                    }
-                }
             }
         }
     }
@@ -290,6 +253,107 @@ fn debug_inventory_ui(
     }
 }
 
+/// Handle slot clicks - select slot for interaction
+fn on_slot_click(
+    click: Trigger<Pointer<Click>>,
+    q_slots: Query<&InventorySlot>,
+    mut q_inventories: Query<&mut Inventory, With<InteractionPlayer>>,
+    ui_state: Res<InventoryUiState>,
+) {
+    let Some(player_entity) = ui_state.open_for_player else {
+        return;
+    };
+
+    if let Ok(slot) = q_slots.get(click.target()) {
+        if let Ok(mut inventory) =
+            q_inventories.get_mut(player_entity)
+        {
+            if slot.slot_index < inventory.capacity {
+                inventory.selected_index = Some(slot.slot_index);
+                info!(
+                    "Clicked slot {} for player {:?}",
+                    slot.slot_index + 1,
+                    player_entity
+                );
+            }
+        }
+    }
+}
+
+/// Handle slot hover enter
+fn on_slot_hover(
+    trigger: Trigger<Pointer<Over>>,
+    q_slots: Query<&InventorySlot>,
+    mut q_backgrounds: Query<
+        &mut BackgroundColor,
+        With<InventorySlot>,
+    >,
+    q_inventories: Query<&Inventory, With<InteractionPlayer>>,
+    ui_state: Res<InventoryUiState>,
+) {
+    let Some(player_entity) = ui_state.open_for_player else {
+        return;
+    };
+
+    if let Ok(slot) = q_slots.get(trigger.target()) {
+        if let Ok(mut background) =
+            q_backgrounds.get_mut(trigger.target())
+        {
+            if let Ok(inventory) = q_inventories.get(player_entity) {
+                let is_selected =
+                    inventory.selected_index == Some(slot.slot_index);
+                let _has_item =
+                    inventory.items.get(slot.slot_index).is_some();
+                *background = if is_selected {
+                    BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9))
+                } else {
+                    BackgroundColor(
+                        bevy::color::palettes::tailwind::CYAN_400
+                            .into(),
+                    )
+                };
+            }
+        }
+    }
+}
+
+/// Handle slot hover exit
+fn on_slot_exit(
+    trigger: Trigger<Pointer<Out>>,
+    q_slots: Query<&InventorySlot>,
+    mut q_backgrounds: Query<
+        &mut BackgroundColor,
+        With<InventorySlot>,
+    >,
+    q_inventories: Query<&Inventory, With<InteractionPlayer>>,
+    ui_state: Res<InventoryUiState>,
+) {
+    let Some(player_entity) = ui_state.open_for_player else {
+        return;
+    };
+
+    if let Ok(slot) = q_slots.get(trigger.target()) {
+        if let Ok(mut background) =
+            q_backgrounds.get_mut(trigger.target())
+        {
+            if let Ok(inventory) = q_inventories.get(player_entity) {
+                let is_selected =
+                    inventory.selected_index == Some(slot.slot_index);
+                let has_item =
+                    inventory.items.get(slot.slot_index).is_some();
+                *background = if is_selected {
+                    BackgroundColor(Color::srgba(0.4, 0.4, 0.8, 0.9))
+                } else if has_item {
+                    BackgroundColor(Color::srgba(0.3, 0.3, 0.3, 0.8))
+                } else {
+                    BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8))
+                };
+            }
+        }
+    }
+}
+
+/// Spawn the inventory UI for a specific player
 fn spawn_inventory_ui(
     commands: &mut Commands,
     capacity: usize,
@@ -372,7 +436,6 @@ fn spawn_inventory_ui(
                         grid_parent
                             .spawn((
                                 InventorySlot { slot_index },
-                                Button,
                                 Node {
                                     width: Val::Px(SLOT_SIZE),
                                     height: Val::Px(SLOT_SIZE),
@@ -385,6 +448,9 @@ fn spawn_inventory_ui(
                                 BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8)),
                                 BorderColor(Color::srgba(0.5, 0.5, 0.5, 1.0)),
                             ))
+                            .observe(on_slot_click)
+                            .observe(on_slot_hover)
+                            .observe(on_slot_exit)
                             .with_children(|slot_parent| {
                                 // Slot number label (small text in corner)
                                 slot_parent.spawn((
@@ -459,6 +525,7 @@ fn spawn_inventory_ui(
         .id()
 }
 
+/// Spawn the selected item HUD that shows details of the currently selected item
 fn spawn_selected_item_ui(
     mut commands: Commands,
     mut selected_ui: ResMut<SelectedItemUi>,
@@ -506,6 +573,7 @@ fn spawn_selected_item_ui(
                     BorderColor(Color::srgba(0.5, 0.5, 0.5, 1.0)),
                 ))
                 .with_children(|slot_parent| {
+                    // Item icon
                     slot_parent.spawn((
                         ImageNode {
                             color: Color::NONE,
@@ -520,6 +588,7 @@ fn spawn_selected_item_ui(
                         },
                     ));
 
+                    // Item name text (fallback when no icon)
                     slot_parent.spawn((
                         ItemNameText,
                         Text::new(""),
@@ -538,20 +607,26 @@ fn spawn_selected_item_ui(
                         },
                     ));
 
+                    // Quantity text (centered within slot for better visibility)
                     slot_parent.spawn((
                         QuantityText,
                         Text::new(""),
                         Node {
                             position_type: PositionType::Absolute,
-                            bottom: Val::Px(2.0),
-                            right: Val::Px(2.0),
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(100.0),
+                            justify_content: JustifyContent::Center,
+                            align_items: AlignItems::Center,
                             ..default()
                         },
-                        TextColor(Color::WHITE),
+                        TextColor(Color::srgba(1.0, 1.0, 1.0, 0.9)),
                         TextFont {
-                            font_size: 12.0,
+                            font_size: 16.0,
                             ..default()
                         },
+                        BackgroundColor(Color::srgba(
+                            0.0, 0.0, 0.0, 0.5,
+                        )),
                     ));
                 });
 
@@ -607,6 +682,7 @@ fn update_selected_item_ui(
     >,
 ) {
     let Some(ui_entity) = selected_ui.entity else {
+        warn!("SelectedItemUi entity missing");
         return;
     };
 
@@ -617,6 +693,7 @@ fn update_selected_item_ui(
                 .and_then(|idx| inventory.items.get(idx));
 
             for child in children.iter() {
+                // Update image
                 if let Ok(mut image_node) = q_images.get_mut(child) {
                     if let Some(&item_entity) = item_entity {
                         if let Ok(item) = q_items.get(item_entity) {
@@ -628,12 +705,13 @@ fn update_selected_item_ui(
                             } else {
                                 image_node.image = Handle::default();
                             }
+                        } else {
+                            image_node.image = Handle::default();
                         }
-                    } else {
-                        image_node.image = Handle::default();
                     }
                 }
 
+                // Update item name text (fallback when no icon)
                 if let Ok(mut text) = q_item_name_text.get_mut(child)
                 {
                     if let Some(&item_entity) = item_entity {
@@ -652,16 +730,17 @@ fn update_selected_item_ui(
                             } else {
                                 text.0 = String::new();
                             }
+                        } else {
+                            text.0 = String::new();
                         }
-                    } else {
-                        text.0 = String::new();
                     }
                 }
 
+                // Update quantity text
                 if let Ok(mut text) = q_quantity_text.get_mut(child) {
                     if let Some(&item_entity) = item_entity {
                         if let Ok(item) = q_items.get(item_entity) {
-                            if item.quantity > 1 {
+                            if item.quantity > 0 {
                                 text.0 = item.quantity.to_string();
                             } else {
                                 text.0 = String::new();
@@ -672,6 +751,7 @@ fn update_selected_item_ui(
                     }
                 }
 
+                // Update selected item name
                 if let Ok(mut text) = q_selected_name.get_mut(child) {
                     if let Some(&item_entity) = item_entity {
                         if let Ok(item) = q_items.get(item_entity) {
