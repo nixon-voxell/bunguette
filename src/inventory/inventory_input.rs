@@ -6,7 +6,8 @@ use crate::interaction::{InteractionPlayer, MarkedItem};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 
-pub struct InventoryInputPlugin;
+// TODO: Refactor to use PlayerAction
+pub(super) struct InventoryInputPlugin;
 
 impl Plugin for InventoryInputPlugin {
     fn build(&self, app: &mut App) {
@@ -18,9 +19,16 @@ impl Plugin for InventoryInputPlugin {
                 consume_input,
                 debug_inventory_system,
                 cycle_selected_item,
+                move_item_input,
             ),
-        );
+        )
+        .init_resource::<MoveItemState>();
     }
+}
+
+#[derive(Resource, Default)]
+struct MoveItemState {
+    pending_move: Option<(Entity, usize)>, // (item_entity, source_index)
 }
 
 fn cycle_selected_item(
@@ -30,6 +38,7 @@ fn cycle_selected_item(
     q_players: Query<Entity, With<InteractionPlayer>>,
 ) {
     // Check if Alt is held down
+    // TODO: Use PlayerAction instead of KeyCode (Implement InventoryModifier)
     let alt_held = keys.pressed(KeyCode::AltLeft)
         || keys.pressed(KeyCode::AltRight);
 
@@ -195,7 +204,180 @@ fn consume_input(
     }
 }
 
-/// Debug system to show inventory contents (I key)
+/// Handles moving items between slots (M key to initiate move, Escape to cancel)
+// TODO: Refactor to use PlayerAction
+fn move_item_input(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut move_state: ResMut<MoveItemState>,
+    q_players: Query<Entity, With<InteractionPlayer>>,
+    mut q_inventories: Query<&mut Inventory, With<InteractionPlayer>>,
+    item_registry: Res<ItemRegistry>,
+    q_items: Query<&Item>,
+) {
+    let player_entity = q_players.iter().next();
+    if player_entity.is_none() {
+        return;
+    }
+    let player_entity = player_entity.unwrap();
+
+    if let Ok(mut inventory) = q_inventories.get_mut(player_entity) {
+        // Initiate or complete move with 'M' key
+        if keys.just_pressed(KeyCode::KeyM) {
+            if move_state.pending_move.is_none() {
+                // Start move
+                if let Some(slot_index) = inventory.selected_index {
+                    if let Some(&item_entity) =
+                        inventory.items.get(slot_index)
+                    {
+                        if item_entity != Entity::PLACEHOLDER {
+                            move_state.pending_move =
+                                Some((item_entity, slot_index));
+                            let item_name = q_items
+                                .get(item_entity)
+                                .ok()
+                                .and_then(|item| {
+                                    item_registry
+                                        .by_id
+                                        .get(&item.id)
+                                        .map(|meta| {
+                                            meta.name.as_str()
+                                        })
+                                })
+                                .unwrap_or("Unknown");
+                            info!(
+                                "Initiated move for item {} in slot {} for player {:?}",
+                                item_name,
+                                slot_index + 1,
+                                player_entity
+                            );
+                        } else {
+                            info!(
+                                "No item in selected slot {} to move for player {:?}",
+                                slot_index + 1,
+                                player_entity
+                            );
+                        }
+                    } else {
+                        info!(
+                            "No item selected to move for player {:?}",
+                            player_entity
+                        );
+                    }
+                } else {
+                    info!(
+                        "No slot selected to initiate move for player {:?}",
+                        player_entity
+                    );
+                }
+            } else {
+                // Complete move
+                if let Some((item_entity, source_index)) =
+                    move_state.pending_move
+                {
+                    if let Some(target_index) =
+                        inventory.selected_index
+                    {
+                        if source_index != target_index
+                            && target_index < inventory.capacity
+                        {
+                            // Ensure inventory has enough slots allocated
+                            while inventory.items.len()
+                                <= target_index
+                            {
+                                inventory
+                                    .items
+                                    .push(Entity::PLACEHOLDER);
+                            }
+                            // Swap or move
+                            let target_item =
+                                inventory.items[target_index];
+                            inventory.items[source_index] =
+                                target_item;
+                            inventory.items[target_index] =
+                                item_entity;
+                            inventory.selected_index =
+                                Some(target_index);
+                            let item_name = q_items
+                                .get(item_entity)
+                                .ok()
+                                .and_then(|item| {
+                                    item_registry
+                                        .by_id
+                                        .get(&item.id)
+                                        .map(|meta| {
+                                            meta.name.as_str()
+                                        })
+                                })
+                                .unwrap_or("Unknown");
+                            if target_item == Entity::PLACEHOLDER {
+                                info!(
+                                    "Moved item {} from slot {} to empty slot {} for player {:?}",
+                                    item_name,
+                                    source_index + 1,
+                                    target_index + 1,
+                                    player_entity
+                                );
+                            } else {
+                                let target_item_name = q_items
+                                    .get(target_item)
+                                    .ok()
+                                    .and_then(|item| {
+                                        item_registry
+                                            .by_id
+                                            .get(&item.id)
+                                            .map(|meta| {
+                                                meta.name.as_str()
+                                            })
+                                    })
+                                    .unwrap_or("Unknown");
+                                info!(
+                                    "Swapped item {} in slot {} with item {} in slot {} for player {:?}",
+                                    item_name,
+                                    source_index + 1,
+                                    target_item_name,
+                                    target_index + 1,
+                                    player_entity
+                                );
+                            }
+                            move_state.pending_move = None;
+                        } else if source_index == target_index {
+                            info!(
+                                "Move canceled: same slot {} selected for player {:?}",
+                                source_index + 1,
+                                player_entity
+                            );
+                            move_state.pending_move = None;
+                        } else {
+                            warn!(
+                                "Target slot {} exceeds inventory capacity {} for player {:?}",
+                                target_index + 1,
+                                inventory.capacity,
+                                player_entity
+                            );
+                        }
+                    } else {
+                        warn!(
+                            "No target slot selected to complete move for player {:?}",
+                            player_entity
+                        );
+                    }
+                }
+            }
+        }
+
+        // Cancel move with 'Escape' key
+        if keys.just_pressed(KeyCode::Escape)
+            && move_state.pending_move.is_some()
+        {
+            move_state.pending_move = None;
+            info!(
+                "Cancelled item move for player {:?}",
+                player_entity
+            );
+        }
+    }
+}
+
 fn debug_inventory_system(
     keys: Res<ButtonInput<KeyCode>>,
     q_players: Query<Entity, With<InteractionPlayer>>,
@@ -219,7 +401,11 @@ fn debug_inventory_system(
                     for (i, &item_entity) in
                         inventory.items.iter().enumerate()
                     {
-                        if let Ok(item) = q_items.get(item_entity) {
+                        if item_entity == Entity::PLACEHOLDER {
+                            info!("  {}: (empty)", i + 1);
+                        } else if let Ok(item) =
+                            q_items.get(item_entity)
+                        {
                             let item_name = item_registry
                                 .by_id
                                 .get(&item.id)
