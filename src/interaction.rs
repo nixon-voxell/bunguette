@@ -55,7 +55,8 @@ fn detect_interactables(
             &Collider::sphere(player.range),
             player_translation,
             Quat::IDENTITY,
-            &SpatialQueryFilter::from_mask(GameLayer::Interactable),
+            &SpatialQueryFilter::from_mask(GameLayer::Interactable)
+                .with_excluded_entities([entity]),
         );
 
         // No items around.
@@ -71,11 +72,6 @@ fn detect_interactables(
         let mut boundary_entities = Vec::new();
 
         for (i, &item_entity) in item_entities.iter().enumerate() {
-            // Ignore self.
-            if item_entity == entity {
-                continue;
-            }
-
             let Ok(item_translation) = q_global_transforms
                 .get(item_entity)
                 .map(|g| g.translation())
