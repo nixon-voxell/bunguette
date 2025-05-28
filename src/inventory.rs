@@ -45,13 +45,55 @@ fn handle_item_added_to_inventory(
             q_inventories.get_mut(player_entity)
         {
             if !inventory.items.contains(&item_entity) {
-                inventory.items.push(item_entity);
-                if inventory.selected_index.is_none()
-                    && !inventory.items.is_empty()
-                {
-                    inventory.selected_index = Some(0);
+                // Find the first available slot or add to end
+                let mut inserted = false;
+                for i in 0..inventory.capacity {
+                    if i >= inventory.items.len() {
+                        // Extend the vector if needed
+                        inventory
+                            .items
+                            .resize(i + 1, Entity::PLACEHOLDER);
+                        inventory.items[i] = item_entity;
+                        inserted = true;
+                        break;
+                    } else if inventory.items[i]
+                        == Entity::PLACEHOLDER
+                    {
+                        inventory.items[i] = item_entity;
+                        inserted = true;
+                        break;
+                    }
                 }
+
+                if !inserted
+                    && inventory.items.len() < inventory.capacity
+                {
+                    inventory.items.push(item_entity);
+                }
+
+                // Set selected index if none is set
+                if inventory.selected_index.is_none() {
+                    // Find the first non-placeholder item
+                    for (i, &entity) in
+                        inventory.items.iter().enumerate()
+                    {
+                        if entity != Entity::PLACEHOLDER {
+                            inventory.selected_index = Some(i);
+                            break;
+                        }
+                    }
+                }
+
+                info!(
+                    "Added item {:?} to player {:?} inventory",
+                    item_entity, player_entity
+                );
             }
+        } else {
+            warn!(
+                "Player {:?} has no inventory when trying to add item {:?}",
+                player_entity, item_entity
+            );
         }
     }
 }
@@ -63,8 +105,7 @@ fn handle_item_removed_from_inventory(
 ) {
     let item_entity = trigger.target();
 
-    // Since we can't access the removed component's data directly,
-    // we need to search through all inventories to find and remove the item
+    // Find the inventory that contains this item and remove it from the items list
     for mut inventory in q_inventories.iter_mut() {
         if let Some(pos) =
             inventory.items.iter().position(|&e| e == item_entity)
@@ -89,7 +130,7 @@ fn handle_item_removed_from_inventory(
 fn handle_pickup(
     trigger: Trigger<PickupEvent>,
     mut commands: Commands,
-    q_inventories: Query<&Inventory>,
+    mut q_inventories: Query<&mut Inventory>,
     mut q_items: Query<&mut Item>,
     q_players: Query<Entity, With<InteractionPlayer>>,
     item_registry: Res<ItemRegistry>,
@@ -106,23 +147,6 @@ fn handle_pickup(
         return;
     }
 
-    // Ensure player has an inventory
-    if q_inventories.get(player_entity).is_err() {
-        commands.entity(player_entity).insert(Inventory {
-            capacity: 9, // Default capacity
-            selected_index: None,
-            ..Default::default()
-        });
-        // Early return since we just inserted the inventory and need to wait for next frame
-        commands.entity(item_entity).insert(ItemOf(player_entity));
-        commands
-            .entity(item_entity)
-            .remove::<Pickupable>()
-            .insert(RigidBodyDisabled)
-            .insert(Visibility::Hidden);
-        return;
-    }
-
     // Get the item being picked up
     let Ok(item) = q_items.get(item_entity) else {
         warn!(
@@ -132,7 +156,37 @@ fn handle_pickup(
         return;
     };
 
-    let Ok(inventory) = q_inventories.get(player_entity) else {
+    // Ensure player has an inventory - but don't return early
+    let mut inventory_just_created = false;
+    if q_inventories.get(player_entity).is_err() {
+        commands.entity(player_entity).insert(Inventory {
+            capacity: 9,
+            selected_index: None,
+            items: Vec::new(),
+        });
+        inventory_just_created = true;
+        info!("Created new inventory for player {:?}", player_entity);
+    }
+
+    if inventory_just_created {
+        // Add item to inventory relationship
+        commands.entity(item_entity).insert(ItemOf(player_entity));
+
+        // Remove from world
+        commands
+            .entity(item_entity)
+            .remove::<Pickupable>()
+            .insert(RigidBodyDisabled)
+            .insert(Visibility::Hidden);
+
+        info!(
+            "Player {:?} picked up item {:?} (new inventory)",
+            player_entity, item_entity
+        );
+        return;
+    }
+
+    let Ok(inventory) = q_inventories.get_mut(player_entity) else {
         warn!("Player {:?} has no inventory", player_entity);
         return;
     };
@@ -189,65 +243,61 @@ fn handle_pickup(
 
     // Try to stack with existing items if possible
     if item_meta.stackable {
-        // Get the inventory to find existing items
-        if let Ok(inventory) = q_inventories.get(player_entity) {
-            // Collect entities that might be stackable
-            let stackable_candidates: Vec<Entity> = inventory
-                .items
-                .iter()
-                .copied()
-                .filter(|&e| {
-                    if let Ok(existing_item) = q_items.get(e) {
-                        existing_item.id == item_id
-                            && existing_item.quantity
-                                < item_meta.max_stack_size
-                    } else {
-                        false
-                    }
-                })
-                .collect();
+        // Collect entities that might be stackable
+        let stackable_candidates: Vec<Entity> = inventory
+            .items
+            .iter()
+            .copied()
+            .filter(|&e| {
+                if let Ok(existing_item) = q_items.get(e) {
+                    existing_item.id == item_id
+                        && existing_item.quantity
+                            < item_meta.max_stack_size
+                } else {
+                    false
+                }
+            })
+            .collect();
 
-            // Try to stack with the first suitable item
-            if let Some(&target_entity) = stackable_candidates.first()
+        // Try to stack with the first suitable item
+        if let Some(&target_entity) = stackable_candidates.first() {
+            if let Ok(mut existing_item) =
+                q_items.get_mut(target_entity)
             {
-                if let Ok(mut existing_item) =
-                    q_items.get_mut(target_entity)
-                {
-                    let space_available = item_meta.max_stack_size
-                        - existing_item.quantity;
-                    let amount_to_add =
-                        item_quantity.min(space_available);
+                let space_available =
+                    item_meta.max_stack_size - existing_item.quantity;
+                let amount_to_add =
+                    item_quantity.min(space_available);
 
-                    // Add to existing stack
-                    existing_item.quantity += amount_to_add;
+                // Add to existing stack
+                existing_item.quantity += amount_to_add;
 
-                    if amount_to_add == item_quantity {
-                        // Entire stack was consumed, despawn the picked up item
-                        commands.entity(item_entity).despawn();
-                        item_consumed = true;
-                        info!(
-                            "Player {:?} stacked {} {} (total: {})",
-                            player_entity,
-                            amount_to_add,
-                            item_meta.name,
-                            existing_item.quantity
-                        );
-                    } else {
-                        // Partial stack, reduce the picked up item's quantity
-                        drop(existing_item);
-                        if let Ok(mut picked_item) =
-                            q_items.get_mut(item_entity)
-                        {
-                            picked_item.quantity -= amount_to_add;
-                        }
-                        info!(
-                            "Player {:?} partially stacked {} {} (remaining: {})",
-                            player_entity,
-                            amount_to_add,
-                            item_meta.name,
-                            item_quantity - amount_to_add
-                        );
+                if amount_to_add == item_quantity {
+                    // Entire stack was consumed, despawn the picked up item
+                    commands.entity(item_entity).despawn();
+                    item_consumed = true;
+                    info!(
+                        "Player {:?} stacked {} {} (total: {})",
+                        player_entity,
+                        amount_to_add,
+                        item_meta.name,
+                        existing_item.quantity
+                    );
+                } else {
+                    // Partial stack, reduce the picked up item's quantity
+                    drop(existing_item);
+                    if let Ok(mut picked_item) =
+                        q_items.get_mut(item_entity)
+                    {
+                        picked_item.quantity -= amount_to_add;
                     }
+                    info!(
+                        "Player {:?} partially stacked {} {} (remaining: {})",
+                        player_entity,
+                        amount_to_add,
+                        item_meta.name,
+                        item_quantity - amount_to_add
+                    );
                 }
             }
         }
@@ -394,10 +444,12 @@ pub struct ConsumeEvent {
 pub struct ItemOf(pub Entity);
 
 /// Marks an entity as having an inventory
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Reflect, Clone, Default)]
 #[reflect(Component)]
 pub struct Inventory {
+    #[reflect(ignore, default)]
     pub items: Vec<Entity>,
+
     pub capacity: usize,
     pub selected_index: Option<usize>,
 }
