@@ -327,7 +327,7 @@ fn spawn_inventory_ui(
     commands: &mut Commands,
     capacity: usize,
     player_type: PlayerType,
-    q_cameras: Query<(&Camera, &CameraType)>, // Query cameras with CameraType
+    q_cameras: Query<(&Camera, &CameraType)>,
 ) -> Entity {
     const SLOT_SIZE: f32 = 64.0;
     const SLOT_GAP: f32 = 4.0;
@@ -348,7 +348,7 @@ fn spawn_inventory_ui(
     // Default viewport (fallback if camera not found)
     let mut viewport_x = 0.0;
     let mut viewport_width = 1920.0;
-    let mut viewport_height = 1080.0;
+    let viewport_height = 1080.0;
 
     // Find the camera for the player
     for (camera, camera_type) in q_cameras.iter() {
@@ -360,7 +360,6 @@ fn spawn_inventory_ui(
             if let Some(viewport) = &camera.viewport {
                 viewport_x = viewport.physical_position.x as f32;
                 viewport_width = viewport.physical_size.x as f32;
-                viewport_height = viewport.physical_size.y as f32;
             }
         }
     }
@@ -533,22 +532,52 @@ fn spawn_inventory_ui(
     ui_entity
 }
 
-/// Spawn the selected item HUD that shows details of the currently selected item
+/// Spawn the selected item UI for a specific player
 fn spawn_selected_item_ui_for_player(
     commands: &mut Commands,
     _player_entity: Entity,
     player_type: PlayerType,
+    q_cameras: Query<(&Camera, &CameraType)>,
 ) -> Entity {
     const SLOT_SIZE: f32 = 48.0;
     const PANEL_PADDING: f32 = 8.0;
+    const MARGIN: f32 = 10.0; // Margin from viewport edges
     let total_width = SLOT_SIZE + (PANEL_PADDING * 2.0) + 100.0;
     let total_height = SLOT_SIZE + (PANEL_PADDING * 2.0);
 
-    // Position HUD based on player type
+    // Default viewport (fallback if camera not found)
+    let mut viewport_x = 0.0;
+
+    // Find the camera for the player
+    let mut camera_found = false;
+    for (camera, camera_type) in q_cameras.iter() {
+        if (player_type == PlayerType::A
+            && *camera_type == CameraType::A)
+            || (player_type == PlayerType::B
+                && *camera_type == CameraType::B)
+        {
+            if let Some(viewport) = &camera.viewport {
+                viewport_x = viewport.physical_position.x as f32;
+                let viewport_width = viewport.physical_size.x as f32;
+                camera_found = true;
+                info!(
+                    "Player: {:?}, Viewport x: {}, width: {}",
+                    player_type, viewport_x, viewport_width
+                );
+            }
+        }
+    }
+    if !camera_found {
+        warn!("No camera found for player {:?}", player_type);
+    }
+
+    // Position HUD in the corner
     let (left, right) = match player_type {
-        PlayerType::A => (Val::Percent(5.0), Val::Auto),
-        PlayerType::B => (Val::Auto, Val::Percent(5.0)),
+        PlayerType::A => (Val::Px(viewport_x + MARGIN), Val::Auto), // Bottom-left
+        PlayerType::B => (Val::Auto, Val::Px(MARGIN)), // Bottom-right
     };
+    let bottom = Val::Px(MARGIN);
+
     commands
         .spawn((
             SelectedItemUiRoot,
@@ -556,7 +585,7 @@ fn spawn_selected_item_ui_for_player(
                 position_type: PositionType::Absolute,
                 left,
                 right,
-                bottom: Val::Px(20.0),
+                bottom,
                 width: Val::Px(total_width),
                 height: Val::Px(total_height),
                 display: Display::Flex,
@@ -568,6 +597,7 @@ fn spawn_selected_item_ui_for_player(
             BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.9)),
             BorderColor(Color::srgba(0.4, 0.4, 0.4, 1.0)),
             FocusPolicy::Pass,
+            UI_RENDER_LAYER,
         ))
         .with_children(|parent| {
             parent
@@ -621,25 +651,23 @@ fn spawn_selected_item_ui_for_player(
                         },
                     ));
 
-                    // Quantity text (centered within slot for better visibility)
+                    // Quantity text (bottom-right corner)
                     slot_parent.spawn((
                         QuantityText,
                         Text::new(""),
                         Node {
                             position_type: PositionType::Absolute,
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            justify_content: JustifyContent::Center,
-                            align_items: AlignItems::Center,
+                            bottom: Val::Px(2.0),
+                            right: Val::Px(2.0),
                             ..default()
                         },
-                        TextColor(Color::srgba(1.0, 1.0, 1.0, 0.9)),
+                        TextColor(Color::srgba(1.0, 1.0, 1.0, 1.0)),
                         TextFont {
-                            font_size: 16.0,
+                            font_size: 12.0,
                             ..default()
                         },
                         BackgroundColor(Color::srgba(
-                            0.0, 0.0, 0.0, 0.5,
+                            0.0, 0.0, 0.0, 0.7,
                         )),
                     ));
                 });
@@ -665,6 +693,7 @@ fn spawn_selected_item_ui_for_player(
 fn ensure_selected_item_hud_for_players(
     mut commands: Commands,
     q_players: Query<(Entity, &PlayerType), With<InteractionPlayer>>,
+    q_cameras: Query<(&Camera, &CameraType)>,
     mut selected_ui: ResMut<SelectedItemUi>,
 ) {
     for (player_entity, player_type) in q_players.iter() {
@@ -673,6 +702,7 @@ fn ensure_selected_item_hud_for_players(
                 &mut commands,
                 player_entity,
                 *player_type,
+                q_cameras,
             );
             selected_ui.entities.insert(player_entity, hud_entity);
         }
@@ -743,6 +773,8 @@ fn update_selected_item_ui(
                             } else {
                                 image_node.image = Handle::default();
                             }
+                        } else {
+                            image_node.image = Handle::default();
                         }
                     }
 
@@ -770,6 +802,8 @@ fn update_selected_item_ui(
                             } else {
                                 text.0 = String::new();
                             }
+                        } else {
+                            text.0 = String::new();
                         }
                     }
 
@@ -780,12 +814,14 @@ fn update_selected_item_ui(
                         if let Some(&item_entity) = item_entity {
                             if let Ok(item) = q_items.get(item_entity)
                             {
-                                if item.quantity > 0 {
+                                if item.quantity >= 1 {
                                     text.0 =
                                         item.quantity.to_string();
                                 } else {
                                     text.0 = String::new();
                                 }
+                            } else {
+                                text.0 = String::new();
                             }
                         } else {
                             text.0 = String::new();
@@ -805,6 +841,8 @@ fn update_selected_item_ui(
                                     .map(|m| m.name.as_str())
                                     .unwrap_or("Unknown");
                                 text.0 = item_name.to_string();
+                            } else {
+                                text.0 = "None".to_string();
                             }
                         } else {
                             text.0 = "None".to_string();
