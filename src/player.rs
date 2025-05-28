@@ -474,7 +474,7 @@ fn setup_name_ui_for_player(
 
 // TODO: Rename these to the character's name!
 
-#[derive(Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum PlayerType {
     A,

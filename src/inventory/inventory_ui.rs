@@ -1,11 +1,15 @@
-use super::{Inventory, Item, ItemRegistry};
-use crate::action::PlayerAction;
-use crate::interaction::InteractionPlayer;
-use crate::player::PlayerType;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
 use leafwing_input_manager::prelude::ActionState;
 use std::collections::HashMap;
+
+use crate::action::PlayerAction;
+use crate::camera_controller::CameraType;
+use crate::camera_controller::UI_RENDER_LAYER;
+use crate::interaction::InteractionPlayer;
+use crate::player::PlayerType;
+
+use super::{Inventory, Item, ItemRegistry};
 
 pub struct InventoryUiPlugin;
 
@@ -35,6 +39,7 @@ fn toggle_inventory(
     >,
     q_inventories: Query<&Inventory, With<InteractionPlayer>>,
     mut ui_state: ResMut<InventoryUiState>,
+    q_cameras: Query<(&Camera, &CameraType)>,
 ) {
     for (player_entity, action_state, player_type) in q_players.iter()
     {
@@ -51,6 +56,7 @@ fn toggle_inventory(
                     &mut commands,
                     inventory.capacity,
                     *player_type,
+                    q_cameras,
                 );
                 ui_state
                     .open_for_players
@@ -321,6 +327,7 @@ fn spawn_inventory_ui(
     commands: &mut Commands,
     capacity: usize,
     player_type: PlayerType,
+    q_cameras: Query<(&Camera, &CameraType)>, // Query cameras with CameraType
 ) -> Entity {
     const SLOT_SIZE: f32 = 64.0;
     const SLOT_GAP: f32 = 4.0;
@@ -338,12 +345,30 @@ fn spawn_inventory_ui(
         + (PANEL_PADDING * 2.0)
         + 40.0;
 
-    // TODO: Fix positioning for split screen
-    // Position UI based on player type for split screen
-    let (left, right) = match player_type {
-        PlayerType::A => (Val::Percent(5.0), Val::Auto),
-        PlayerType::B => (Val::Auto, Val::Percent(5.0)),
-    };
+    // Default viewport (fallback if camera not found)
+    let mut viewport_x = 0.0;
+    let mut viewport_width = 1920.0;
+    let mut viewport_height = 1080.0;
+
+    // Find the camera for the player
+    for (camera, camera_type) in q_cameras.iter() {
+        if (player_type == PlayerType::A
+            && *camera_type == CameraType::A)
+            || (player_type == PlayerType::B
+                && *camera_type == CameraType::B)
+        {
+            if let Some(viewport) = &camera.viewport {
+                viewport_x = viewport.physical_position.x as f32;
+                viewport_width = viewport.physical_size.x as f32;
+                viewport_height = viewport.physical_size.y as f32;
+            }
+        }
+    }
+
+    // Center the UI in the player's viewport
+    let left =
+        Val::Px(viewport_x + (viewport_width - total_width) / 2.0);
+    let top = Val::Px((viewport_height - total_height) / 2.0);
 
     let ui_entity = commands
         .spawn((
@@ -351,32 +376,29 @@ fn spawn_inventory_ui(
             Node {
                 position_type: PositionType::Absolute,
                 left,
-                right,
-                top: Val::Percent(10.0),
+                right: Val::Auto,
+                top,
                 width: Val::Px(total_width),
                 height: Val::Px(total_height),
                 display: Display::Flex,
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(PANEL_PADDING)),
                 border: UiRect::all(Val::Px(2.0)),
-                margin: UiRect {
-                    left: Val::Px(-total_width / 2.0),
-                    top: Val::Px(-total_height / 2.0),
-                    ..default()
-                },
+                margin: UiRect::default(),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 0.9)),
             BorderColor(Color::srgba(0.4, 0.4, 0.4, 1.0)),
             FocusPolicy::Block,
+            // Render on UI camera's layer
+            UI_RENDER_LAYER,
         ))
         .id();
+
     commands.entity(ui_entity).with_children(|parent| {
         // Instructions text
         parent.spawn((
-            Text::new(
-                "Alt + Scroll select slots, Q to drop, C to consume",
-            ),
+            Text::new("Inventory System"),
             Node {
                 margin: UiRect::bottom(Val::Px(8.0)),
                 ..default()
