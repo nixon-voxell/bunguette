@@ -187,8 +187,8 @@ fn apply_gravity(
 /// Handles movement and jumping
 fn movement(
     time: Res<Time>,
-    q_camera_a: QueryCameraA<&GlobalTransform>,
-    q_camera_b: QueryCameraB<&GlobalTransform>,
+    q_camera_a: QueryCameraA<&GlobalTransform, With<Camera>>,
+    q_camera_b: QueryCameraB<&GlobalTransform, With<Camera>>,
     q_actions: Query<&ActionState<PlayerAction>>,
     mut q_characters: Query<(
         &CharacterController,

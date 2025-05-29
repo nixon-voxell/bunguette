@@ -407,8 +407,8 @@ fn setup_name_ui_for_player(
     trigger: Trigger<OnAdd, PlayerType>,
     mut commands: Commands,
     q_players: Query<&PlayerType, With<CharacterController>>,
-    q_camera_a: QueryCameraA<Entity>,
-    q_camera_b: QueryCameraB<Entity>,
+    q_camera_a: QueryCameraA<Entity, With<Camera>>,
+    q_camera_b: QueryCameraB<Entity, With<Camera>>,
 ) -> Result {
     let entity = trigger.target();
 

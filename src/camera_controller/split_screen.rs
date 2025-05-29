@@ -19,8 +19,7 @@ impl Plugin for SplitScreenPlugin {
         app.add_systems(PreStartup, setup_camera_and_environment)
             .add_systems(Update, set_camera_split_viewports);
 
-        app.register_type::<CameraType>()
-            .register_type::<CameraSnap>();
+        app.register_type::<CameraType>();
     }
 }
 
@@ -146,11 +145,6 @@ fn ui_camera_bundle(order: isize) -> impl Bundle {
     )
 }
 
-/// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct CameraSnap;
-
 #[derive(Reflect, Debug, Clone, Copy, Hash, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum CameraType {
@@ -195,13 +189,7 @@ pub type QueryCameraA<'w, 's, D, F = ()> = Query<
     'w,
     's,
     D,
-    (
-        F,
-        With<CameraA>,
-        Without<CameraB>,
-        Without<CameraFull>,
-        With<Camera>,
-    ),
+    (F, With<CameraA>, Without<CameraB>, Without<CameraFull>),
 >;
 
 /// A unique query to the [`CameraB`] entity.
@@ -210,13 +198,7 @@ pub type QueryCameraB<'w, 's, D, F = ()> = Query<
     'w,
     's,
     D,
-    (
-        F,
-        With<CameraB>,
-        Without<CameraA>,
-        Without<CameraFull>,
-        With<Camera>,
-    ),
+    (F, With<CameraB>, Without<CameraA>, Without<CameraFull>),
 >;
 
 /// A unique query to the [`CameraFull`] entity.
@@ -225,13 +207,7 @@ pub type QueryCameraFull<'w, 's, D, F = ()> = Query<
     'w,
     's,
     D,
-    (
-        F,
-        With<CameraFull>,
-        Without<CameraA>,
-        Without<CameraB>,
-        With<Camera>,
-    ),
+    (F, With<CameraFull>, Without<CameraA>, Without<CameraB>),
 >;
 
 /// A unique component for [`Camera`] that full covers the entire screen
