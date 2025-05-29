@@ -4,8 +4,8 @@ use leafwing_input_manager::prelude::ActionState;
 use std::collections::HashMap;
 
 use crate::action::PlayerAction;
-use crate::camera_controller::CameraType;
 use crate::camera_controller::UI_RENDER_LAYER;
+use crate::camera_controller::split_screen::CameraType;
 use crate::interaction::InteractionPlayer;
 use crate::player::PlayerType;
 
@@ -71,7 +71,7 @@ fn update_inventory_ui(
     ui_state: Res<InventoryUiState>,
     q_inventories: Query<&Inventory, With<InteractionPlayer>>,
     q_items: Query<&Item>,
-    item_registry: Res<ItemRegistry>,
+    item_registry: ItemRegistry,
     mut q_slots: Query<
         (
             &InventorySlot,
@@ -91,6 +91,10 @@ fn update_inventory_ui(
         (With<QuantityText>, Without<ItemNameText>),
     >,
 ) {
+    let Some(item_meta_asset) = item_registry.get() else {
+        return;
+    };
+
     for (&player_entity, &ui_entity) in
         ui_state.open_for_players.iter()
     {
@@ -135,9 +139,11 @@ fn update_inventory_ui(
                                     q_items.get(item_entity)
                                 {
                                     if let Some(icon_handle) =
-                                        item_registry
-                                            .icons
+                                        item_meta_asset
                                             .get(&item.id)
+                                            .and_then(|meta| {
+                                                meta.icon.as_ref()
+                                            })
                                     {
                                         image_node.image =
                                             icon_handle.clone();
@@ -176,18 +182,20 @@ fn update_inventory_ui(
                                 if let Ok(item) =
                                     q_items.get(item_entity)
                                 {
-                                    let item_meta = item_registry
-                                        .by_id
-                                        .get(&item.id);
+                                    let item_meta =
+                                        item_meta_asset.get(&item.id);
                                     let item_name = item_meta
                                         .map(|m| m.name.as_str())
                                         .unwrap_or("Unknown");
 
+                                    let icon = item_meta_asset
+                                        .get(&item.id)
+                                        .and_then(|meta| {
+                                            meta.icon.as_ref()
+                                        });
+
                                     // Show text only if no icon
-                                    if !item_registry
-                                        .icons
-                                        .contains_key(&item.id)
-                                    {
+                                    if icon.is_none() {
                                         text.0 =
                                             item_name.to_string();
                                     } else {
@@ -747,7 +755,7 @@ fn update_selected_item_ui(
         With<InteractionPlayer>,
     >,
     q_items: Query<&Item>,
-    item_registry: Res<ItemRegistry>,
+    item_registry: ItemRegistry,
     selected_ui: Res<SelectedItemUi>,
     q_ui_nodes: Query<&Children, With<SelectedItemUiRoot>>,
     q_slot_children: Query<&Children, With<SelectedItemSlot>>,
@@ -777,6 +785,10 @@ fn update_selected_item_ui(
         ),
     >,
 ) {
+    let Some(item_meta_asset) = item_registry.get() else {
+        return;
+    };
+
     for (player_entity, inventory, _player_type) in q_players.iter() {
         if let Some(ui_entity) =
             selected_ui.entities.get(&player_entity)
@@ -812,9 +824,11 @@ fn update_selected_item_ui(
                                 if let Some((_, item)) = selected_item
                                 {
                                     if let Some(icon_handle) =
-                                        item_registry
-                                            .icons
+                                        item_meta_asset
                                             .get(&item.id)
+                                            .and_then(|meta| {
+                                                meta.icon.as_ref()
+                                            })
                                     {
                                         image_node.image =
                                             icon_handle.clone();
@@ -842,16 +856,18 @@ fn update_selected_item_ui(
                             {
                                 if let Some((_, item)) = selected_item
                                 {
-                                    let item_name = item_registry
-                                        .by_id
+                                    let item_name = item_meta_asset
                                         .get(&item.id)
                                         .map(|m| m.name.as_str())
                                         .unwrap_or("Unknown");
 
                                     // Show text only if no icon
-                                    if !item_registry
-                                        .icons
-                                        .contains_key(&item.id)
+                                    if item_meta_asset
+                                        .get(&item.id)
+                                        .and_then(|meta| {
+                                            meta.icon.as_ref()
+                                        })
+                                        .is_none()
                                     {
                                         text.0 =
                                             item_name.to_string();
@@ -890,8 +906,7 @@ fn update_selected_item_ui(
                         q_selected_name.get_mut(child)
                     {
                         if let Some((_, item)) = selected_item {
-                            let item_name = item_registry
-                                .by_id
+                            let item_name = item_meta_asset
                                 .get(&item.id)
                                 .map(|m| m.name.as_str())
                                 .unwrap_or("Unknown");

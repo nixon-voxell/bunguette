@@ -1,90 +1,95 @@
+use bevy::asset::{AssetLoader, io::Reader};
+use bevy::asset::{AsyncReadExt, LoadContext};
+use bevy::ecs::system::SystemParam;
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use serde::Deserialize;
-use std::fs;
 
 /// Plugin to handle item metadata loading and registry setup
 pub(super) struct ItemPlugin;
 
 impl Plugin for ItemPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ItemRegistry>()
-            .add_systems(Startup, load_item_list)
-            .add_systems(
-                Startup,
-                populate_registry.after(load_item_list),
-            );
+        app.init_asset::<ItemMetaAsset>()
+            .init_asset_loader::<ItemMetaAssetLoader>();
+
+        app.add_systems(PreStartup, load_item_registry);
     }
 }
 
-/// Startup system: load "assets/items.ron" and insert as a resource
-fn load_item_list(mut commands: Commands) {
-    let ron_str = fs::read_to_string("assets/items.ron")
-        .expect("Failed to read assets/items.ron");
-    let item_list: ItemList =
-        ron::from_str(&ron_str).expect("Failed to parse items.ron");
-    commands.insert_resource(item_list);
-    info!("Loaded items.ron into ItemList resource");
-}
-
-/// System to populate the ItemRegistry from the ItemList resource
-fn populate_registry(
-    mut registry: ResMut<ItemRegistry>,
-    item_list: Res<ItemList>,
+/// Startup system: load "items.item_meta.ron" and insert as a resource.
+fn load_item_registry(
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
-    if registry.loaded {
-        return;
-    }
-
-    let mut new_by_id = std::collections::HashMap::new();
-    let mut new_icons = std::collections::HashMap::new();
-
-    for meta in item_list.items.iter() {
-        if new_by_id.contains_key(&meta.id) {
-            error!("Duplicate item ID {} found in ItemList", meta.id);
-            continue;
-        }
-
-        if let Some(icon_path) = &meta.icon_path {
-            let icon_handle: Handle<Image> =
-                asset_server.load(icon_path);
-            new_icons.insert(meta.id, icon_handle);
-        }
-
-        new_by_id.insert(meta.id, meta.clone());
-    }
-
-    registry.by_id = new_by_id;
-    registry.icons = new_icons;
-    registry.loaded = true;
-
-    info!(
-        "Populated ItemRegistry with {} items",
-        item_list.items.len()
-    );
+    commands.insert_resource(ItemMetaAssetHandle(
+        asset_server.load("items.item_meta.ron"),
+    ));
 }
 
-/// The root structure for the RON file containing all item definitions
-#[derive(Debug, Clone, Deserialize, Resource)]
-pub struct ItemList {
-    pub items: Vec<ItemMeta>,
-}
+#[derive(Asset, TypePath, Deref, Debug, Clone, Deserialize)]
+pub struct ItemMetaAsset(HashMap<String, ItemMeta>);
 
-/// Metadata for each item type in the game - loaded from RON files
+/// Metadata for each item type in the game - loaded from RON files.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ItemMeta {
-    pub id: u32,
     pub name: String,
     pub icon_path: Option<String>,
     pub _description: Option<String>,
     pub stackable: bool,
     pub max_stack_size: u32,
+
+    #[serde(skip_serializing, skip_deserializing)]
+    pub icon: Option<Handle<Image>>,
 }
 
-/// A registry resource that holds all ItemMeta by their unique id
-#[derive(Resource, Default)]
-pub struct ItemRegistry {
-    pub by_id: std::collections::HashMap<u32, ItemMeta>,
-    pub icons: std::collections::HashMap<u32, Handle<Image>>,
-    pub loaded: bool,
+#[derive(Resource)]
+pub struct ItemMetaAssetHandle(Handle<ItemMetaAsset>);
+
+#[derive(SystemParam)]
+pub struct ItemRegistry<'w> {
+    pub handle: Res<'w, ItemMetaAssetHandle>,
+    pub assets: Res<'w, Assets<ItemMetaAsset>>,
+}
+
+impl ItemRegistry<'_> {
+    pub fn get(&self) -> Option<&ItemMetaAsset> {
+        self.assets.get(&self.handle.0)
+    }
+}
+
+#[derive(Default)]
+pub struct ItemMetaAssetLoader;
+
+impl AssetLoader for ItemMetaAssetLoader {
+    type Asset = ItemMetaAsset;
+
+    type Settings = ();
+
+    type Error = std::io::Error;
+
+    async fn load(
+        &self,
+        reader: &mut dyn Reader,
+        _settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut ron_str = String::new();
+        reader.read_to_string(&mut ron_str).await?;
+
+        let mut asset = ron::from_str::<ItemMetaAsset>(&ron_str)
+            .expect("Failed to parse items.ron");
+
+        for item_meta in asset.0.values_mut() {
+            if let Some(icon_path) = item_meta.icon_path.as_ref() {
+                item_meta.icon = Some(load_context.load(icon_path));
+            }
+        }
+
+        Ok(asset)
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["item_meta.ron"]
+    }
 }

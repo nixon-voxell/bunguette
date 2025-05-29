@@ -1,3 +1,4 @@
+use super::item::ItemMetaAsset;
 use super::{
     Consumable, ConsumeEvent, DropEvent, Inventory, Item,
     ItemRegistry, PickupEvent, Pickupable,
@@ -459,9 +460,13 @@ fn move_item_input(
     >,
     mut move_state_a: ResMut<MoveItemStateA>,
     mut move_state_b: ResMut<MoveItemStateB>,
-    item_registry: Res<ItemRegistry>,
+    item_registry: ItemRegistry,
     q_items: Query<&Item>,
 ) {
+    let Some(item_meta_asset) = item_registry.get() else {
+        return;
+    };
+
     // Handle Player A
     if let Ok((player_entity, action_state, mut inventory)) =
         q_player_a.single_mut()
@@ -471,7 +476,7 @@ fn move_item_input(
             action_state,
             &mut inventory,
             &mut move_state_a.pending_move,
-            &item_registry,
+            item_meta_asset,
             &q_items,
             "A",
         );
@@ -486,7 +491,7 @@ fn move_item_input(
             action_state,
             &mut inventory,
             &mut move_state_b.pending_move,
-            &item_registry,
+            item_meta_asset,
             &q_items,
             "B",
         );
@@ -498,7 +503,7 @@ fn handle_move_item_for_player(
     action_state: &ActionState<PlayerAction>,
     inventory: &mut Inventory,
     pending_move: &mut Option<(Entity, usize)>,
-    item_registry: &ItemRegistry,
+    item_meta_asset: &ItemMetaAsset,
     q_items: &Query<&Item>,
     player_name: &str,
 ) {
@@ -517,8 +522,7 @@ fn handle_move_item_for_player(
                             .get(item_entity)
                             .ok()
                             .and_then(|item| {
-                                item_registry
-                                    .by_id
+                                item_meta_asset
                                     .get(&item.id)
                                     .map(|meta| meta.name.as_str())
                             })
@@ -571,8 +575,7 @@ fn handle_move_item_for_player(
                             .get(item_entity)
                             .ok()
                             .and_then(|item| {
-                                item_registry
-                                    .by_id
+                                item_meta_asset
                                     .get(&item.id)
                                     .map(|meta| meta.name.as_str())
                             })
@@ -591,12 +594,9 @@ fn handle_move_item_for_player(
                                 .get(target_item)
                                 .ok()
                                 .and_then(|item| {
-                                    item_registry
-                                        .by_id
-                                        .get(&item.id)
-                                        .map(|meta| {
-                                            meta.name.as_str()
-                                        })
+                                    item_meta_asset.get(&item.id).map(
+                                        |meta| meta.name.as_str(),
+                                    )
                                 })
                                 .unwrap_or("Unknown");
                             info!(

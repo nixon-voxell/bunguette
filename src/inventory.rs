@@ -134,8 +134,12 @@ fn handle_pickup(
     mut q_inventories: Query<&mut Inventory>,
     mut q_items: Query<&mut Item>,
     q_players: Query<Entity, With<InteractionPlayer>>,
-    item_registry: Res<ItemRegistry>,
+    item_registry: ItemRegistry,
 ) {
+    let Some(item_meta_asset) = item_registry.get() else {
+        return;
+    };
+
     let player_entity = trigger.target();
     let item_entity = trigger.event().item;
 
@@ -196,7 +200,7 @@ fn handle_pickup(
         return;
     };
 
-    let Some(item_meta) = item_registry.by_id.get(&item.id) else {
+    let Some(item_meta) = item_meta_asset.get(&item.id) else {
         warn!("Item {} not found in registry", item.id);
         // Still allow pickup, just treat as non-stackable
         commands.entity(item_entity).insert(ItemOf(player_entity));
@@ -247,7 +251,7 @@ fn handle_pickup(
     }
 
     let mut item_consumed = false;
-    let item_id = item.id;
+    let item_name = &item.id;
     let item_quantity = item.quantity;
 
     // Try to stack with existing items if possible
@@ -259,7 +263,7 @@ fn handle_pickup(
             .copied()
             .filter(|&e| {
                 if let Ok(existing_item) = q_items.get(e) {
-                    existing_item.id == item_id
+                    &existing_item.id == item_name
                         && existing_item.quantity
                             < item_meta.max_stack_size
                 } else {
@@ -396,8 +400,12 @@ fn handle_consume(
     mut commands: Commands,
     mut q_items: Query<&mut Item>,
     q_players: Query<Entity, With<InteractionPlayer>>,
-    item_registry: Res<ItemRegistry>,
+    item_registry: ItemRegistry,
 ) {
+    let Some(item_meta_asset) = item_registry.get() else {
+        return;
+    };
+
     let player_entity = trigger.target();
     let item_entity = trigger.event().item;
 
@@ -412,8 +420,7 @@ fn handle_consume(
 
     // Handle consumption logic
     if let Ok(mut item) = q_items.get_mut(item_entity) {
-        let item_name = item_registry
-            .by_id
+        let item_name = item_meta_asset
             .get(&item.id)
             .map(|meta| meta.name.as_str())
             .unwrap_or("Unknown Item");
@@ -484,8 +491,8 @@ pub struct Consumable;
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct Item {
-    /// A unique identifier that corresponds to ItemMeta
-    pub id: u32,
-    /// How many are in this stack
+    /// A unique identifier that corresponds to [`item::ItemMeta`]
+    pub id: String,
+    /// How many are in this stack.
     pub quantity: u32,
 }
