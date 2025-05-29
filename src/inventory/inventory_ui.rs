@@ -849,10 +849,9 @@ fn update_selected_item_ui(
                                         .unwrap_or("Unknown");
 
                                     // Show text only if no icon
-                                    if item_registry
+                                    if !item_registry
                                         .icons
-                                        .get(&item.id)
-                                        .is_none()
+                                        .contains_key(&item.id)
                                     {
                                         text.0 =
                                             item_name.to_string();

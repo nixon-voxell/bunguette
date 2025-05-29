@@ -294,7 +294,6 @@ fn handle_pickup(
                     );
                 } else {
                     // Partial stack, reduce the picked up item's quantity
-                    drop(existing_item);
                     if let Ok(mut picked_item) =
                         q_items.get_mut(item_entity)
                     {
