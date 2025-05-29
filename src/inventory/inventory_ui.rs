@@ -104,12 +104,10 @@ fn update_inventory_ui(
 
                 let item_entity =
                     inventory.items.get(slot.slot_index);
-
-                // Update slot background based on selection
                 let is_selected =
                     inventory.selected_index == Some(slot.slot_index);
 
-                // Treat Entity::PLACEHOLDER or None as an empty slot
+                // Check if slot has a valid item
                 let is_empty = item_entity.is_none()
                     || item_entity == Some(&Entity::PLACEHOLDER)
                     || item_entity
@@ -125,20 +123,16 @@ fn update_inventory_ui(
                     BackgroundColor(Color::srgba(0.2, 0.2, 0.2, 0.8))
                 };
 
-                if !is_empty {
-                    if let Some(&item_entity) = item_entity {
-                        if let Ok(item) = q_items.get(item_entity) {
-                            let item_meta =
-                                item_registry.by_id.get(&item.id);
-                            let item_name = item_meta
-                                .map(|m| m.name.as_str())
-                                .unwrap_or("Unknown");
-
-                            // Update children components
-                            for child in children.iter() {
-                                // Try to update image
-                                if let Ok(mut image_node) =
-                                    q_images.get_mut(child)
+                // Update children components
+                for child in children.iter() {
+                    // Update image
+                    if let Ok(mut image_node) =
+                        q_images.get_mut(child)
+                    {
+                        if !is_empty {
+                            if let Some(&item_entity) = item_entity {
+                                if let Ok(item) =
+                                    q_items.get(item_entity)
                                 {
                                     if let Some(icon_handle) =
                                         item_registry
@@ -147,14 +141,49 @@ fn update_inventory_ui(
                                     {
                                         image_node.image =
                                             icon_handle.clone();
+                                        image_node.color =
+                                            // Make visible
+                                            Color::WHITE;
                                     } else {
                                         image_node.image =
                                             Handle::default();
+                                        image_node.color =
+                                            // Hide when no icon
+                                            Color::NONE;
                                     }
+                                } else {
+                                    image_node.image =
+                                        Handle::default();
+                                    image_node.color = Color::NONE;
                                 }
-                                if let Ok(mut text) =
-                                    q_item_name_text.get_mut(child)
+                            } else {
+                                image_node.image = Handle::default();
+                                image_node.color = Color::NONE;
+                            }
+                        } else {
+                            // Empty slot - hide image
+                            image_node.image = Handle::default();
+                            image_node.color = Color::NONE;
+                        }
+                    }
+
+                    // Update item name text
+                    if let Ok(mut text) =
+                        q_item_name_text.get_mut(child)
+                    {
+                        if !is_empty {
+                            if let Some(&item_entity) = item_entity {
+                                if let Ok(item) =
+                                    q_items.get(item_entity)
                                 {
+                                    let item_meta = item_registry
+                                        .by_id
+                                        .get(&item.id);
+                                    let item_name = item_meta
+                                        .map(|m| m.name.as_str())
+                                        .unwrap_or("Unknown");
+
+                                    // Show text only if no icon
                                     if item_registry
                                         .icons
                                         .get(&item.id)
@@ -163,13 +192,28 @@ fn update_inventory_ui(
                                         text.0 =
                                             item_name.to_string();
                                     } else {
+                                        // Hide text when icon exists
                                         text.0 = String::new();
                                     }
+                                } else {
+                                    text.0 = String::new();
                                 }
+                            } else {
+                                text.0 = String::new();
+                            }
+                        } else {
+                            text.0 = String::new(); // Empty slot
+                        }
+                    }
 
-                                // Try to update quantity text
-                                if let Ok(mut text) =
-                                    q_quantity_text.get_mut(child)
+                    // Update quantity text
+                    if let Ok(mut text) =
+                        q_quantity_text.get_mut(child)
+                    {
+                        if !is_empty {
+                            if let Some(&item_entity) = item_entity {
+                                if let Ok(item) =
+                                    q_items.get(item_entity)
                                 {
                                     if item.quantity > 1 {
                                         text.0 =
@@ -177,27 +221,14 @@ fn update_inventory_ui(
                                     } else {
                                         text.0 = String::new();
                                     }
+                                } else {
+                                    text.0 = String::new();
                                 }
+                            } else {
+                                text.0 = String::new();
                             }
-                        }
-                    }
-                } else {
-                    // Clear empty slot content
-                    for child in children.iter() {
-                        if let Ok(mut image_node) =
-                            q_images.get_mut(child)
-                        {
-                            image_node.image = Handle::default();
-                        }
-                        if let Ok(mut text) =
-                            q_item_name_text.get_mut(child)
-                        {
-                            text.0 = String::new();
-                        }
-                        if let Ok(mut text) =
-                            q_quantity_text.get_mut(child)
-                        {
-                            text.0 = String::new();
+                        } else {
+                            text.0 = String::new(); // Empty slot
                         }
                     }
                 }
@@ -477,7 +508,6 @@ fn spawn_inventory_ui(
                                     color: Color::NONE,
                                     ..default()
                                 },
-                                BackgroundColor(Color::NONE),
                                 Node {
                                     width: Val::Percent(90.0),
                                     height: Val::Percent(90.0),
@@ -541,7 +571,8 @@ fn spawn_selected_item_ui_for_player(
 ) -> Entity {
     const SLOT_SIZE: f32 = 48.0;
     const PANEL_PADDING: f32 = 8.0;
-    const MARGIN: f32 = 10.0; // Margin from viewport edges
+    // Margin from viewport edges
+    const MARGIN: f32 = 10.0;
     let total_width = SLOT_SIZE + (PANEL_PADDING * 2.0) + 100.0;
     let total_height = SLOT_SIZE + (PANEL_PADDING * 2.0);
 
@@ -573,8 +604,10 @@ fn spawn_selected_item_ui_for_player(
 
     // Position HUD in the corner
     let (left, right) = match player_type {
-        PlayerType::A => (Val::Px(viewport_x + MARGIN), Val::Auto), // Bottom-left
-        PlayerType::B => (Val::Auto, Val::Px(MARGIN)), // Bottom-right
+        // Bottom-left
+        PlayerType::A => (Val::Px(viewport_x + MARGIN), Val::Auto),
+        // Bottom-right
+        PlayerType::B => (Val::Auto, Val::Px(MARGIN)),
     };
     let bottom = Val::Px(MARGIN);
 
@@ -623,7 +656,6 @@ fn spawn_selected_item_ui_for_player(
                             color: Color::NONE,
                             ..default()
                         },
-                        BackgroundColor(Color::NONE),
                         Node {
                             width: Val::Percent(90.0),
                             height: Val::Percent(90.0),
@@ -661,14 +693,13 @@ fn spawn_selected_item_ui_for_player(
                             right: Val::Px(2.0),
                             ..default()
                         },
-                        TextColor(Color::srgba(1.0, 1.0, 1.0, 1.0)),
+                        TextColor(Color::srgba(
+                            255.0, 165.0, 0.0, 1.0,
+                        )),
                         TextFont {
                             font_size: 12.0,
                             ..default()
                         },
-                        BackgroundColor(Color::srgba(
-                            0.0, 0.0, 0.0, 0.7,
-                        )),
                     ));
                 });
 
@@ -719,6 +750,7 @@ fn update_selected_item_ui(
     item_registry: Res<ItemRegistry>,
     selected_ui: Res<SelectedItemUi>,
     q_ui_nodes: Query<&Children, With<SelectedItemUiRoot>>,
+    q_slot_children: Query<&Children, With<SelectedItemSlot>>,
     mut q_images: Query<&mut ImageNode>,
     mut q_item_name_text: Query<
         &mut Text,
@@ -750,81 +782,107 @@ fn update_selected_item_ui(
             selected_ui.entities.get(&player_entity)
         {
             if let Ok(children) = q_ui_nodes.get(*ui_entity) {
-                let item_entity = inventory
+                // Get selected item
+                let selected_item = inventory
                     .selected_index
-                    .and_then(|idx| inventory.items.get(idx));
+                    .and_then(|idx| inventory.items.get(idx))
+                    .and_then(|&item_entity| {
+                        if item_entity == Entity::PLACEHOLDER {
+                            None
+                        } else {
+                            q_items
+                                .get(item_entity)
+                                .ok()
+                                .map(|item| (item_entity, item))
+                        }
+                    });
+
+                // Update all child components
                 for child in children.iter() {
-                    // Update image
-                    if let Ok(mut image_node) =
-                        q_images.get_mut(child)
+                    // Check if this child is a SelectedItemSlot
+                    if let Ok(slot_children) =
+                        q_slot_children.get(child)
                     {
-                        if let Some(&item_entity) = item_entity {
-                            if let Ok(item) = q_items.get(item_entity)
+                        // Traverse the slot's children to find ImageNode, ItemNameText, QuantityText
+                        for slot_child in slot_children.iter() {
+                            // Update image
+                            if let Ok(mut image_node) =
+                                q_images.get_mut(slot_child)
                             {
-                                if let Some(icon_handle) =
-                                    item_registry.icons.get(&item.id)
+                                if let Some((_, item)) = selected_item
                                 {
-                                    image_node.image =
-                                        icon_handle.clone();
+                                    if let Some(icon_handle) =
+                                        item_registry
+                                            .icons
+                                            .get(&item.id)
+                                    {
+                                        image_node.image =
+                                            icon_handle.clone();
+                                        // Make visible
+                                        image_node.color =
+                                            Color::WHITE;
+                                    } else {
+                                        image_node.image =
+                                            Handle::default();
+                                        // Hide when no icon
+                                        image_node.color =
+                                            Color::NONE;
+                                    }
                                 } else {
                                     image_node.image =
                                         Handle::default();
+                                    // No selection
+                                    image_node.color = Color::NONE;
                                 }
-                            } else {
-                                image_node.image = Handle::default();
                             }
-                        } else {
-                            image_node.image = Handle::default();
-                        }
-                    }
 
-                    // Update item name text (fallback when no icon)
-                    if let Ok(mut text) =
-                        q_item_name_text.get_mut(child)
-                    {
-                        if let Some(&item_entity) = item_entity {
-                            if let Ok(item) = q_items.get(item_entity)
+                            // Update item name text (fallback when no icon)
+                            if let Ok(mut text) =
+                                q_item_name_text.get_mut(slot_child)
                             {
-                                let item_name = item_registry
-                                    .by_id
-                                    .get(&item.id)
-                                    .map(|m| m.name.as_str())
-                                    .unwrap_or("Unknown");
-                                if item_registry
-                                    .icons
-                                    .get(&item.id)
-                                    .is_none()
+                                if let Some((_, item)) = selected_item
                                 {
-                                    text.0 = item_name.to_string();
-                                } else {
-                                    text.0 = String::new();
-                                }
-                            } else {
-                                text.0 = String::new();
-                            }
-                        } else {
-                            text.0 = String::new();
-                        }
-                    }
+                                    let item_name = item_registry
+                                        .by_id
+                                        .get(&item.id)
+                                        .map(|m| m.name.as_str())
+                                        .unwrap_or("Unknown");
 
-                    // Update quantity text
-                    if let Ok(mut text) =
-                        q_quantity_text.get_mut(child)
-                    {
-                        if let Some(&item_entity) = item_entity {
-                            if let Ok(item) = q_items.get(item_entity)
-                            {
-                                if item.quantity >= 1 {
-                                    text.0 =
-                                        item.quantity.to_string();
+                                    // Show text only if no icon
+                                    if item_registry
+                                        .icons
+                                        .get(&item.id)
+                                        .is_none()
+                                    {
+                                        text.0 =
+                                            item_name.to_string();
+                                    } else {
+                                        // Hide when icon exists
+                                        text.0 = String::new();
+                                    }
                                 } else {
+                                    // No selection
                                     text.0 = String::new();
                                 }
-                            } else {
-                                text.0 = String::new();
                             }
-                        } else {
-                            text.0 = String::new();
+
+                            // Update quantity text
+                            if let Ok(mut text) =
+                                q_quantity_text.get_mut(slot_child)
+                            {
+                                if let Some((_, item)) = selected_item
+                                {
+                                    if item.quantity > 1 {
+                                        text.0 =
+                                            item.quantity.to_string();
+                                    } else {
+                                        text.0 = String::new();
+                                    }
+                                } else {
+                                    // No selection
+                                    text.0 = String::new();
+                                }
+                            }
                         }
                     }
 
@@ -832,19 +890,15 @@ fn update_selected_item_ui(
                     if let Ok(mut text) =
                         q_selected_name.get_mut(child)
                     {
-                        if let Some(&item_entity) = item_entity {
-                            if let Ok(item) = q_items.get(item_entity)
-                            {
-                                let item_name = item_registry
-                                    .by_id
-                                    .get(&item.id)
-                                    .map(|m| m.name.as_str())
-                                    .unwrap_or("Unknown");
-                                text.0 = item_name.to_string();
-                            } else {
-                                text.0 = "None".to_string();
-                            }
+                        if let Some((_, item)) = selected_item {
+                            let item_name = item_registry
+                                .by_id
+                                .get(&item.id)
+                                .map(|m| m.name.as_str())
+                                .unwrap_or("Unknown");
+                            text.0 = item_name.to_string();
                         } else {
+                            // No selection
                             text.0 = "None".to_string();
                         }
                     }

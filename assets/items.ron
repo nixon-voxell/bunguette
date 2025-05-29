@@ -3,7 +3,7 @@
         (
             id: 1,
             name: "Health Potion",
-            icon_path: None,
+            icon_path: Some("icons/potion.png"),
             description: Some("Restores 50 health points when consumed."),
             stackable: true,
             max_stack_size: 10,
