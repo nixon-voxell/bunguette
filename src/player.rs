@@ -5,7 +5,9 @@ use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
-use crate::camera_controller::{QueryCameraA, QueryCameraB};
+use crate::camera_controller::split_screen::{
+    QueryCameraA, QueryCameraB,
+};
 use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
 

@@ -2,11 +2,11 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::{
-    action::{PlayerAction, RequireAction, TargetAction},
-    camera_controller::{QueryCameraA, QueryCameraB},
-    player::PlayerType,
+use crate::action::{PlayerAction, RequireAction, TargetAction};
+use crate::camera_controller::split_screen::{
+    QueryCameraA, QueryCameraB,
 };
+use crate::player::PlayerType;
 
 /// Plugin that sets up kinematic character movement
 pub(super) struct MovementPlugin;
