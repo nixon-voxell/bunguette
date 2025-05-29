@@ -57,5 +57,5 @@ pub enum GameLayer {
     Player,
     Enemy,
     Interactable,
-    InventoryItems,
+    InventoryItem,
 }

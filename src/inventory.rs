@@ -179,7 +179,7 @@ fn handle_pickup(
             .remove::<Pickupable>()
             .insert(RigidBodyDisabled)
             .insert(CollisionLayers::new(
-                GameLayer::InventoryItems,
+                GameLayer::InventoryItem,
                 LayerMask::NONE,
             ))
             .insert(Visibility::Hidden);
@@ -205,7 +205,7 @@ fn handle_pickup(
             .remove::<Pickupable>()
             .insert(RigidBodyDisabled)
             .insert(CollisionLayers::new(
-                GameLayer::InventoryItems,
+                GameLayer::InventoryItem,
                 LayerMask::NONE,
             ))
             .insert(Visibility::Hidden);
@@ -323,7 +323,7 @@ fn handle_pickup(
             .remove::<Pickupable>()
             .insert(RigidBodyDisabled)
             .insert(CollisionLayers::new(
-                GameLayer::InventoryItems,
+                GameLayer::InventoryItem,
                 LayerMask::NONE,
             ))
             .insert(Visibility::Hidden);
