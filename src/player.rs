@@ -42,11 +42,8 @@ fn ready_inputs(
     q_gamepads: Query<&Gamepad>,
     kbd_inputs: Res<ButtonInput<KeyCode>>,
     mut player_state: ResMut<NextState<PlayerState>>,
-    // Query for existing player entities
-    q_player_a: QueryPlayerA<Entity>,
-    q_player_b: QueryPlayerB<Entity>,
 ) {
-    let Some((player_a_possessor, player_b_possessor)) =
+    let Some((player_a, player_b)) =
         player_possessor.get_possessors()
     else {
         return;
@@ -61,27 +58,23 @@ fn ready_inputs(
         return;
     }
 
-    // Add ActionState to existing PlayerA entity
-    if let Ok(player_a_entity) = q_player_a.single() {
-        let action_state = match player_a_possessor {
-            PossessorType::Keyboard => PlayerAction::new_kbm(),
-            PossessorType::Gamepad(entity) => {
-                PlayerAction::new_gamepad().with_gamepad(*entity)
-            }
-        };
-        commands.entity(player_a_entity).insert(action_state);
+    match player_a {
+        PossessorType::Keyboard => {
+            commands.spawn(PlayerAction::new_kbm())
+        }
+        PossessorType::Gamepad(entity) => commands
+            .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
+    .insert(PlayerType::A);
 
-    // Add ActionState to existing PlayerB entity
-    if let Ok(player_b_entity) = q_player_b.single() {
-        let action_state = match player_b_possessor {
-            PossessorType::Keyboard => PlayerAction::new_kbm(),
-            PossessorType::Gamepad(entity) => {
-                PlayerAction::new_gamepad().with_gamepad(*entity)
-            }
-        };
-        commands.entity(player_b_entity).insert(action_state);
+    match player_b {
+        PossessorType::Keyboard => {
+            commands.spawn(PlayerAction::new_kbm())
+        }
+        PossessorType::Gamepad(entity) => commands
+            .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
+    .insert(PlayerType::B);
 
     player_state.set(PlayerState::Possessed);
 }
