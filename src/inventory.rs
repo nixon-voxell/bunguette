@@ -1,4 +1,5 @@
 use crate::interaction::InteractionPlayer;
+use crate::physics::GameLayer;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use item::ItemRegistry;
@@ -177,6 +178,10 @@ fn handle_pickup(
             .entity(item_entity)
             .remove::<Pickupable>()
             .insert(RigidBodyDisabled)
+            .insert(CollisionLayers::new(
+                GameLayer::InventoryItems,
+                LayerMask::NONE,
+            ))
             .insert(Visibility::Hidden);
 
         info!(
@@ -199,6 +204,10 @@ fn handle_pickup(
             .entity(item_entity)
             .remove::<Pickupable>()
             .insert(RigidBodyDisabled)
+            .insert(CollisionLayers::new(
+                GameLayer::InventoryItems,
+                LayerMask::NONE,
+            ))
             .insert(Visibility::Hidden);
         return;
     };
@@ -313,6 +322,10 @@ fn handle_pickup(
             .entity(item_entity)
             .remove::<Pickupable>()
             .insert(RigidBodyDisabled)
+            .insert(CollisionLayers::new(
+                GameLayer::InventoryItems,
+                LayerMask::NONE,
+            ))
             .insert(Visibility::Hidden);
 
         info!(
@@ -366,6 +379,10 @@ fn handle_drop(
         .entity(item_entity)
         .insert(Pickupable)
         .remove::<RigidBodyDisabled>()
+        .insert(CollisionLayers::new(
+            GameLayer::Interactable,
+            [GameLayer::Default, GameLayer::Player],
+        ))
         .insert(Visibility::Visible);
 
     info!(
