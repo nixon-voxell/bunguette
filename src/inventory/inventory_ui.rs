@@ -729,13 +729,12 @@ fn ensure_selected_item_hud_for_players(
     for (player_entity, player_type) in q_players.iter() {
         selected_ui.entities.entry(player_entity).or_insert_with(
             || {
-                let hud_entity = spawn_selected_item_ui_for_player(
+                spawn_selected_item_ui_for_player(
                     &mut commands,
                     player_entity,
                     *player_type,
                     q_cameras,
-                );
-                hud_entity
+                )
             },
         );
     }
