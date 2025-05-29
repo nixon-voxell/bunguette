@@ -184,10 +184,9 @@ fn update_inventory_ui(
                                         .unwrap_or("Unknown");
 
                                     // Show text only if no icon
-                                    if item_registry
+                                    if !item_registry
                                         .icons
-                                        .get(&item.id)
-                                        .is_none()
+                                        .contains_key(&item.id)
                                     {
                                         text.0 =
                                             item_name.to_string();
@@ -366,7 +365,7 @@ fn spawn_inventory_ui(
 
     // Calculate grid dimensions based on capacity
     let grid_cols = (capacity as f32).sqrt().ceil() as usize;
-    let grid_rows = (capacity + grid_cols - 1) / grid_cols;
+    let grid_rows = capacity.div_ceil(grid_cols);
 
     let total_width = (SLOT_SIZE * grid_cols as f32)
         + (SLOT_GAP * (grid_cols as f32 - 1.0))
@@ -728,15 +727,17 @@ fn ensure_selected_item_hud_for_players(
     mut selected_ui: ResMut<SelectedItemUi>,
 ) {
     for (player_entity, player_type) in q_players.iter() {
-        if !selected_ui.entities.contains_key(&player_entity) {
-            let hud_entity = spawn_selected_item_ui_for_player(
-                &mut commands,
-                player_entity,
-                *player_type,
-                q_cameras,
-            );
-            selected_ui.entities.insert(player_entity, hud_entity);
-        }
+        selected_ui.entities.entry(player_entity).or_insert_with(
+            || {
+                let hud_entity = spawn_selected_item_ui_for_player(
+                    &mut commands,
+                    player_entity,
+                    *player_type,
+                    q_cameras,
+                );
+                hud_entity
+            },
+        );
     }
 }
 

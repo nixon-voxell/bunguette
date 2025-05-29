@@ -29,12 +29,12 @@ impl Plugin for InventoryInputPlugin {
 
 #[derive(Resource, Default)]
 struct MoveItemStateA {
-    pending_move: Option<(Entity, usize)>, // (item_entity, source_index)
+    pending_move: Option<(Entity, usize)>,
 }
 
 #[derive(Resource, Default)]
 struct MoveItemStateB {
-    pending_move: Option<(Entity, usize)>, // (item_entity, source_index)
+    pending_move: Option<(Entity, usize)>,
 }
 
 fn cycle_selected_item(
@@ -52,7 +52,7 @@ fn cycle_selected_item(
     if let Ok((action_state, mut inventory)) = q_player_a.single_mut()
     {
         cycle_inventory_for_player(
-            &action_state,
+            action_state,
             &mut inventory,
             &q_items,
             "A",
@@ -63,7 +63,7 @@ fn cycle_selected_item(
     if let Ok((action_state, mut inventory)) = q_player_b.single_mut()
     {
         cycle_inventory_for_player(
-            &action_state,
+            action_state,
             &mut inventory,
             &q_items,
             "B",
