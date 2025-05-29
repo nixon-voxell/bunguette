@@ -573,7 +573,7 @@ dependencies = [
  "downcast-rs 2.0.1",
  "either",
  "petgraph",
- "ron",
+ "ron 0.8.1",
  "serde",
  "smallvec",
  "thiserror 2.0.12",
@@ -635,7 +635,7 @@ dependencies = [
  "js-sys",
  "notify-debouncer-full",
  "parking_lot",
- "ron",
+ "ron 0.8.1",
  "serde",
  "stackfuture",
  "thiserror 2.0.12",
@@ -726,7 +726,7 @@ dependencies = [
  "anyhow",
  "bevy",
  "csv",
- "ron",
+ "ron 0.8.1",
  "serde",
  "thiserror 1.0.69",
 ]
@@ -4815,6 +4815,8 @@ dependencies = [
  "bevy_mod_outline",
  "bevy_skein",
  "leafwing-input-manager",
+ "ron 0.10.1",
+ "serde",
 ]
 
 [[package]]
@@ -4923,6 +4925,19 @@ dependencies = [
  "bitflags 2.9.1",
  "serde",
  "serde_derive",
+]
+
+[[package]]
+name = "ron"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beceb6f7bf81c73e73aeef6dd1356d9a1b2b4909e1f0fc3e59b034f9572d7b7f"
+dependencies = [
+ "base64 0.22.1",
+ "bitflags 2.9.1",
+ "serde",
+ "serde_derive",
+ "unicode-ident",
 ]
 
 [[package]]

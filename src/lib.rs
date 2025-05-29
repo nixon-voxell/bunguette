@@ -6,6 +6,7 @@ mod asset_pipeline;
 mod camera_controller;
 mod character_controller;
 mod interaction;
+mod inventory;
 mod physics;
 mod player;
 mod ui;
@@ -29,6 +30,7 @@ impl Plugin for AppPlugin {
             camera_controller::CameraControllerPlugin,
             character_controller::MovementPlugin,
             interaction::InteractionPlugin,
+            inventory::InventoryPlugin,
             player::PlayerPlugin,
         ));
 

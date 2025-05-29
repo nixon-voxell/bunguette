@@ -1,0 +1,44 @@
+(
+    items: [
+        (
+            id: 1,
+            name: "Health Potion",
+            icon_path: Some("icons/potion.png"),
+            description: Some("Restores 50 health points when consumed."),
+            stackable: true,
+            max_stack_size: 10,
+        ),
+        (
+            id: 2,
+            name: "Iron Sword",
+            icon_path: None,
+            description: Some("A sturdy iron sword with +15 attack power."),
+            stackable: false,
+            max_stack_size: 1,
+        ),
+        (
+            id: 3,
+            name: "Gold Coin",
+            icon_path: None,
+            description: Some("Shiny gold coins used as currency."),
+            stackable: true,
+            max_stack_size: 999,
+        ),
+        (
+            id: 4,
+            name: "Magic Crystal",
+            icon_path: None,
+            description: Some("A mysterious crystal that glows with magical energy."),
+            stackable: true,
+            max_stack_size: 5,
+        ),
+        (
+            id: 5,
+            name: "Wooden Shield",
+            icon_path: None,
+            description: Some("A basic wooden shield that provides minimal protection."),
+            stackable: false,
+            max_stack_size: 1,
+        ),
+    ]
+)
