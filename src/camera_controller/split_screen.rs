@@ -5,6 +5,10 @@ use bevy::core_pipeline::core_3d::Camera3dDepthLoadOp;
 use bevy::core_pipeline::smaa::Smaa;
 use bevy::core_pipeline::tonemapping::{DebandDither, Tonemapping};
 use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
+use bevy::ecs::query::{
+    QueryData, QueryFilter, QuerySingleError, ROQueryItem,
+};
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::camera::{CameraOutputMode, Viewport};
 use bevy::render::view::RenderLayers;
@@ -180,6 +184,47 @@ impl Component for CameraType {
                 }
             }
         });
+    }
+}
+
+#[derive(SystemParam)]
+pub struct QueryCameras<'w, 's, D, F = ()>
+where
+    D: QueryData + 'static,
+    F: QueryFilter + 'static,
+{
+    pub q_camera_a: QueryCameraA<'w, 's, D, F>,
+    pub q_camera_b: QueryCameraB<'w, 's, D, F>,
+    pub q_camera_full: QueryCameraFull<'w, 's, D, F>,
+}
+
+impl<D, F> QueryCameras<'_, '_, D, F>
+where
+    D: QueryData + 'static,
+    F: QueryFilter + 'static,
+{
+    #[allow(dead_code)]
+    pub fn get_camera(
+        &self,
+        camera_type: CameraType,
+    ) -> Result<ROQueryItem<'_, D>, QuerySingleError> {
+        match camera_type {
+            CameraType::Full => self.q_camera_full.single(),
+            CameraType::A => self.q_camera_a.single(),
+            CameraType::B => self.q_camera_b.single(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get_camera_mut(
+        &mut self,
+        camera_type: CameraType,
+    ) -> Result<D::Item<'_>, QuerySingleError> {
+        match camera_type {
+            CameraType::Full => self.q_camera_full.single_mut(),
+            CameraType::A => self.q_camera_a.single_mut(),
+            CameraType::B => self.q_camera_b.single_mut(),
+        }
     }
 }
 

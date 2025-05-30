@@ -1,10 +1,11 @@
-use std::f32::consts::{FRAC_PI_2, TAU};
+use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use bevy::prelude::*;
 use bevy::render::view::RenderLayers;
 use leafwing_input_manager::prelude::*;
 use split_screen::{
     CameraType, QueryCameraA, QueryCameraB, QueryCameraFull,
+    QueryCameras,
 };
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
@@ -38,17 +39,16 @@ fn third_person_camera(
         (&PlayerType, &GlobalTransform, &TargetAction),
         With<CameraTarget>,
     >,
-    mut q_orbit_a: QueryCameraA<(
+    mut q_cameras: QueryCameras<(
         &ThirdPersonCamera,
         &mut OrbitAngle,
+        &mut OrbitAngleTarget,
         &mut Transform,
     )>,
-    mut q_orbit_b: QueryCameraB<(
-        &ThirdPersonCamera,
-        &mut OrbitAngle,
-        &mut Transform,
+    q_actions: Query<(
+        &ActionState<PlayerAction>,
+        &InputMap<PlayerAction>,
     )>,
-    q_actions: Query<&ActionState<PlayerAction>>,
     time: Res<Time>,
 ) -> Result {
     let dt = time.delta_secs();
@@ -56,38 +56,63 @@ fn third_person_camera(
     for (camera_type, target_transform, target_action) in
         q_camera_targets.iter()
     {
-        let (config, mut angle, mut camera_transform) =
-            match camera_type {
-                PlayerType::A => q_orbit_a.single_mut(),
-                PlayerType::B => q_orbit_b.single_mut(),
-            }?;
+        let (
+            config,
+            mut angle,
+            mut target_angle,
+            mut camera_transform,
+        ) = match camera_type {
+            PlayerType::A => q_cameras.get_camera_mut(CameraType::A),
+            PlayerType::B => q_cameras.get_camera_mut(CameraType::B),
+        }?;
 
-        let action = q_actions.get(target_action.get())?;
+        let (action, input_map) =
+            q_actions.get(target_action.get())?;
 
         let aim = action.axis_pair(&PlayerAction::Aim);
 
-        angle.yaw -= aim.x * config.sensitivity * dt;
-        angle.pitch -= aim.y * config.sensitivity * dt;
+        // Gamepad gets a boost in sensitivity.
+        let device_sensitivity = if input_map.gamepad().is_some() {
+            10.0
+        } else {
+            1.0
+        };
+
+        target_angle.yaw -=
+            aim.x * config.yaw_sensitivity * device_sensitivity * dt;
+        target_angle.pitch += aim.y
+            * config.pitch_sensitivity
+            * device_sensitivity
+            * dt;
 
         // Clamp pitch to prevent camera flipping overhead or underfoot.
-        angle.pitch = angle.pitch.clamp(
-            -FRAC_PI_2 + 0.05, // Slightly > -90 degrees
-            FRAC_PI_2 - 0.05,  // Slightly <  90 degrees
-        );
+        target_angle.pitch = target_angle
+            .pitch
+            .clamp(0.0, FRAC_PI_2 * config.max_pitch);
 
         // Keep yaw within 0 to 2*PI range for consistency,
         // though not strictly necessary due to trigonometric
         // functions handling periodicity.
-        angle.yaw = angle.yaw.rem_euclid(TAU);
+        target_angle.yaw = target_angle.yaw.rem_euclid(TAU);
+
+        angle.yaw =
+            angle.yaw.lerp(target_angle.yaw, dt * config.orbit_speed);
+        angle.pitch = angle
+            .pitch
+            .lerp(target_angle.pitch, dt * config.orbit_speed);
 
         let focus = target_transform.translation();
+        let current_distance =
+            focus.distance(camera_transform.translation);
+        let distance = current_distance
+            .lerp(config.distance, dt * config.follow_speed);
 
         // Calculate camera position using spherical coordinates logic
-        let cam_x = focus.x
-            + config.distance * angle.pitch.cos() * angle.yaw.sin();
-        let cam_y = focus.y + config.distance * angle.pitch.sin();
-        let cam_z = focus.z
-            + config.distance * angle.pitch.cos() * angle.yaw.cos();
+        let cam_x =
+            focus.x + distance * angle.pitch.cos() * angle.yaw.sin();
+        let cam_y = focus.y + distance * angle.pitch.sin();
+        let cam_z =
+            focus.z + distance * angle.pitch.cos() * angle.yaw.cos();
 
         camera_transform.translation = Vec3::new(cam_x, cam_y, cam_z);
         camera_transform.look_at(focus, Vec3::Y);
@@ -132,7 +157,7 @@ fn snap_camera(
             CameraType::B => *camera_b = target_transform,
         }
 
-        info!("Snapped camera of type: {camera_type:?}");
+        debug!("Snapped camera of type: {camera_type:?}");
     }
 
     Ok(())
@@ -156,22 +181,46 @@ pub struct CameraTarget;
 
 #[derive(Component, Reflect)]
 #[require(OrbitAngle)]
-#[reflect(Component)]
+#[reflect(Component, Default)]
 pub struct ThirdPersonCamera {
-    /// The orbit sensitivity.
-    pub sensitivity: f32,
+    /// The yaw angle sensitivity.
+    pub yaw_sensitivity: f32,
+    /// The pitch angle sensitivity.
+    pub pitch_sensitivity: f32,
     /// The distance between the
     /// camera and the [`CameraTarget`].
     pub distance: f32,
     /// The follow speed.
-    pub speed: f32,
+    pub follow_speed: f32,
+    /// The orbit speed.
+    pub orbit_speed: f32,
+    /// Max pitch angle in percentage from 0 - 1.
+    /// Will be multiplied by [`FRAC_PI_2`].
+    pub max_pitch: f32,
 }
 
-#[derive(Component, Default)]
+impl Default for ThirdPersonCamera {
+    fn default() -> Self {
+        Self {
+            yaw_sensitivity: 0.8,
+            pitch_sensitivity: 0.4,
+            distance: 4.0,
+            follow_speed: 20.0,
+            orbit_speed: 10.0,
+            max_pitch: 0.8,
+        }
+    }
+}
+
+#[derive(Component, Default, Debug)]
+#[require(OrbitAngleTarget)]
 pub struct OrbitAngle {
     pub yaw: f32,
     pub pitch: f32,
 }
+
+#[derive(Component, Deref, DerefMut, Default, Debug)]
+pub struct OrbitAngleTarget(pub OrbitAngle);
 
 /// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
 #[derive(Component, Reflect)]
