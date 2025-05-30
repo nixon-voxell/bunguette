@@ -3,6 +3,7 @@ use bevy::ui::FocusPolicy;
 use bevy::{color::palettes::tailwind::*, ecs::spawn::SpawnWith};
 use widgets::button::{ButtonBackground, LabelButton};
 
+mod inventory_ui;
 pub mod widgets;
 pub mod world_space;
 
@@ -13,6 +14,7 @@ impl Plugin for UiPlugin {
         app.add_plugins((
             world_space::WorldSpaceUiPlugin,
             widgets::WidgetsPlugin,
+            inventory_ui::InventoryUiPlugin,
         ));
 
         app.add_systems(Startup, setup_menu);

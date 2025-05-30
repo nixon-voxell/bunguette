@@ -1,42 +1,14 @@
 (
     {
         "health_potion": (
-            name: "Health Potion",
-            icon_path: Some("icons/potion.png"),
-            description: Some("Restores 50 health points when consumed."),
-            stackable: true,
-            max_stack_size: 10,
+            icon_path: "icons/potion.png",
+            max_stack_size: 5,
+            item_type: ingredient,
         ),
-        "iron_sword": (
-            name: "Iron Sword",
-            icon_path: None,
-            description: Some("A sturdy iron sword with +15 attack power."),
-            stackable: false,
+        "cannon_tower": (
+            icon_path: "icons/tower.png",
             max_stack_size: 1,
+            item_type: tower,
         ),
-        // (
-        //     id: 3,
-        //     name: "Gold Coin",
-        //     icon_path: None,
-        //     description: Some("Shiny gold coins used as currency."),
-        //     stackable: true,
-        //     max_stack_size: 999,
-        // ),
-        // (
-        //     id: 4,
-        //     name: "Magic Crystal",
-        //     icon_path: None,
-        //     description: Some("A mysterious crystal that glows with magical energy."),
-        //     stackable: true,
-        //     max_stack_size: 5,
-        // ),
-        // (
-        //     id: 5,
-        //     name: "Wooden Shield",
-        //     icon_path: None,
-        //     description: Some("A basic wooden shield that provides minimal protection."),
-        //     stackable: false,
-        //     max_stack_size: 1,
-        // ),
     }
 )
