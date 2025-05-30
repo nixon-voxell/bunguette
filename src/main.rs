@@ -1,8 +1,14 @@
 use bevy::asset::AssetMetaCheck;
 use bevy::audio::{AudioPlugin, Volume};
+use bevy::ecs::error::{GLOBAL_ERROR_HANDLER, error};
 use bevy::prelude::*;
 
 fn main() {
+    // Log error by desault instead of panicking.
+    GLOBAL_ERROR_HANDLER
+        .set(error)
+        .expect("The error handler can only be set once, globally.");
+
     App::new()
         .add_plugins(
             DefaultPlugins
