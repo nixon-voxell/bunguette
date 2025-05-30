@@ -4,6 +4,7 @@ use leafwing_input_manager::prelude::*;
 use crate::player::{
     PlayerState, PlayerType, QueryPlayerA, QueryPlayerB,
 };
+use crate::util::PropagateComponentAppExt;
 
 pub(super) struct ActionPlugin;
 
@@ -15,7 +16,7 @@ impl Plugin for ActionPlugin {
                 hookup_target_action
                     .run_if(in_state(PlayerState::Possessed)),
             )
-            .add_observer(setup_gamepad_index);
+            .add_observer(setup_gamepad_index).propagate_component::<TargetAction>();
     }
 }
 
@@ -149,7 +150,7 @@ impl GamepadIndex {
 #[derive(Component, Default)]
 pub struct RequireAction;
 
-#[derive(Component, Deref)]
+#[derive(Component, Deref, Clone, Copy)]
 pub struct TargetAction(Entity);
 
 impl TargetAction {

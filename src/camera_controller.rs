@@ -28,7 +28,8 @@ impl Plugin for CameraControllerPlugin {
         .add_observer(setup_directional_light);
 
         app.register_type::<CameraSnap>()
-            .register_type::<ThirdPersonCamera>();
+            .register_type::<ThirdPersonCamera>()
+            .register_type::<CameraTarget>();
     }
 }
 

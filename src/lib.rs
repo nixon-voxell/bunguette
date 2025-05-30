@@ -10,6 +10,7 @@ mod inventory;
 mod physics;
 mod player;
 mod ui;
+mod util;
 
 pub struct AppPlugin;
 

@@ -10,6 +10,7 @@ use crate::camera_controller::split_screen::{
 };
 use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
+use crate::util::PropagateComponentAppExt;
 
 pub(super) struct PlayerPlugin;
 
@@ -30,7 +31,8 @@ impl Plugin for PlayerPlugin {
                 )
                     .run_if(in_state(PlayerState::Possessing)),
             )
-            .add_observer(handle_possession_triggers);
+            .add_observer(handle_possession_triggers)
+            .propagate_component::<PlayerType>();
 
         app.register_type::<PlayerType>();
     }
