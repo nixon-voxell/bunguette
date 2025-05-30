@@ -23,9 +23,10 @@ impl Plugin for CameraControllerPlugin {
 
         app.add_systems(
             PostUpdate,
-            snap_camera.after(TransformSystem::TransformPropagate),
+            (third_person_camera, snap_camera)
+                .chain()
+                .after(TransformSystem::TransformPropagate),
         )
-        .add_systems(Update, third_person_camera)
         .add_observer(setup_directional_light);
 
         app.register_type::<CameraSnap>()
@@ -42,7 +43,6 @@ fn third_person_camera(
     mut q_cameras: QueryCameras<(
         &ThirdPersonCamera,
         &mut OrbitAngle,
-        &mut OrbitAngleTarget,
         &mut Transform,
     )>,
     q_actions: Query<(
@@ -56,50 +56,44 @@ fn third_person_camera(
     for (camera_type, target_transform, target_action) in
         q_camera_targets.iter()
     {
-        let (
-            config,
-            mut angle,
-            mut target_angle,
-            mut camera_transform,
-        ) = match camera_type {
-            PlayerType::A => q_cameras.get_camera_mut(CameraType::A),
-            PlayerType::B => q_cameras.get_camera_mut(CameraType::B),
-        }?;
+        let (config, mut angle, mut camera_transform) =
+            match camera_type {
+                PlayerType::A => {
+                    q_cameras.get_camera_mut(CameraType::A)
+                }
+                PlayerType::B => {
+                    q_cameras.get_camera_mut(CameraType::B)
+                }
+            }?;
 
         let (action, input_map) =
             q_actions.get(target_action.get())?;
 
+        let is_gamepad = input_map.gamepad().is_some();
         let aim = action.axis_pair(&PlayerAction::Aim);
 
         // Gamepad gets a boost in sensitivity.
-        let device_sensitivity = if input_map.gamepad().is_some() {
-            10.0
-        } else {
-            1.0
-        };
+        let device_sensitivity = if is_gamepad { 10.0 } else { 1.0 };
 
-        target_angle.yaw -=
-            aim.x * config.yaw_sensitivity * device_sensitivity * dt;
-        target_angle.pitch += aim.y
+        let mut aim_y = aim.y
             * config.pitch_sensitivity
             * device_sensitivity
             * dt;
 
+        aim_y = if is_gamepad { -aim_y } else { aim_y };
+
+        angle.yaw -=
+            aim.x * config.yaw_sensitivity * device_sensitivity * dt;
+        angle.pitch += aim_y;
+
         // Clamp pitch to prevent camera flipping overhead or underfoot.
-        target_angle.pitch = target_angle
-            .pitch
-            .clamp(0.0, FRAC_PI_2 * config.max_pitch);
+        angle.pitch =
+            angle.pitch.clamp(0.0, FRAC_PI_2 * config.max_pitch);
 
         // Keep yaw within 0 to 2*PI range for consistency,
         // though not strictly necessary due to trigonometric
         // functions handling periodicity.
-        target_angle.yaw = target_angle.yaw.rem_euclid(TAU);
-
-        angle.yaw =
-            angle.yaw.lerp(target_angle.yaw, dt * config.orbit_speed);
-        angle.pitch = angle
-            .pitch
-            .lerp(target_angle.pitch, dt * config.orbit_speed);
+        angle.yaw = angle.yaw.rem_euclid(TAU);
 
         let focus = target_transform.translation();
         let current_distance =
@@ -192,8 +186,6 @@ pub struct ThirdPersonCamera {
     pub distance: f32,
     /// The follow speed.
     pub follow_speed: f32,
-    /// The orbit speed.
-    pub orbit_speed: f32,
     /// Max pitch angle in percentage from 0 - 1.
     /// Will be multiplied by [`FRAC_PI_2`].
     pub max_pitch: f32,
@@ -202,26 +194,20 @@ pub struct ThirdPersonCamera {
 impl Default for ThirdPersonCamera {
     fn default() -> Self {
         Self {
-            yaw_sensitivity: 0.8,
+            yaw_sensitivity: 0.4,
             pitch_sensitivity: 0.4,
             distance: 4.0,
-            follow_speed: 20.0,
-            orbit_speed: 10.0,
+            follow_speed: 10.0,
             max_pitch: 0.8,
         }
     }
 }
 
 #[derive(Component, Default, Debug)]
-#[require(OrbitAngleTarget)]
 pub struct OrbitAngle {
     pub yaw: f32,
     pub pitch: f32,
 }
-
-#[derive(Component, Deref, DerefMut, Default, Debug)]
-pub struct OrbitAngleTarget(pub OrbitAngle);
-
 /// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
 #[derive(Component, Reflect)]
 #[reflect(Component)]

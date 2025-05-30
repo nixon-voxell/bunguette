@@ -409,7 +409,6 @@ fn setup_character_collision(
 ) {
     commands.entity(trigger.target()).insert((
         Inventory::default(),
-        CollidingEntities::default(),
         CollisionLayers::new(GameLayer::Player, LayerMask::ALL),
     ));
 }
