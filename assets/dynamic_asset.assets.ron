@@ -8,6 +8,6 @@
     ),
 
     "scenes.default": File (
-        path: "scenes/inventory_action_test.glb",
+        path: "scenes/default_scene.glb",
     ),
 })
