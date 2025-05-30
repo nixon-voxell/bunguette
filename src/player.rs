@@ -10,6 +10,7 @@ use crate::camera_controller::split_screen::{
 };
 use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
+use crate::util::PropagateComponentAppExt;
 
 pub(super) struct PlayerPlugin;
 
@@ -30,7 +31,8 @@ impl Plugin for PlayerPlugin {
                 )
                     .run_if(in_state(PlayerState::Possessing)),
             )
-            .add_observer(handle_possession_triggers);
+            .add_observer(handle_possession_triggers)
+            .propagate_component::<PlayerType>();
 
         app.register_type::<PlayerType>();
     }
@@ -54,7 +56,7 @@ fn ready_inputs(
         ready = ready || gamepad.just_pressed(GamepadButton::South);
     }
 
-    if ready == false {
+    if !ready {
         return;
     }
 
@@ -65,7 +67,7 @@ fn ready_inputs(
         PossessorType::Gamepad(entity) => commands
             .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
-    .insert((PlayerType::A, *player_a));
+    .insert(PlayerType::A);
 
     match player_b {
         PossessorType::Keyboard => {
@@ -74,7 +76,7 @@ fn ready_inputs(
         PossessorType::Gamepad(entity) => commands
             .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
-    .insert((PlayerType::B, *player_b));
+    .insert(PlayerType::B);
 
     player_state.set(PlayerState::Possessed);
 }
@@ -469,7 +471,7 @@ fn setup_name_ui_for_player(
 
 // TODO: Rename these to the character's name!
 
-#[derive(Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum PlayerType {
     A,

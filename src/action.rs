@@ -4,6 +4,7 @@ use leafwing_input_manager::prelude::*;
 use crate::player::{
     PlayerState, PlayerType, QueryPlayerA, QueryPlayerB,
 };
+use crate::util::PropagateComponentAppExt;
 
 pub(super) struct ActionPlugin;
 
@@ -15,7 +16,7 @@ impl Plugin for ActionPlugin {
                 hookup_target_action
                     .run_if(in_state(PlayerState::Possessed)),
             )
-            .add_observer(setup_gamepad_index);
+            .add_observer(setup_gamepad_index).propagate_component::<TargetAction>();
     }
 }
 
@@ -78,6 +79,16 @@ pub enum PlayerAction {
     Jump,
     Interact,
     Attack,
+    // Inventory actions.
+    Pickup,
+    Drop,
+    Consume,
+    CycleNext,
+    CyclePrev,
+    MoveItem,
+    ToggleInventory,
+    #[actionlike(Button)]
+    InventoryModifier,
 }
 
 impl PlayerAction {
@@ -96,6 +107,14 @@ impl PlayerAction {
             .with(Self::Jump, GamepadButton::South)
             .with(Self::Interact, GamepadButton::West)
             .with(Self::Attack, GamepadButton::RightTrigger2)
+            .with(Self::Pickup, GamepadButton::West)
+            .with(Self::Drop, GamepadButton::North)
+            .with(Self::Consume, GamepadButton::LeftTrigger2)
+            .with(Self::CycleNext, GamepadButton::East)
+            .with(Self::CyclePrev, GamepadButton::West)
+            .with(Self::MoveItem, GamepadButton::RightTrigger)
+            .with(Self::ToggleInventory, GamepadButton::Select)
+            .with(Self::InventoryModifier, GamepadButton::LeftTrigger)
     }
 
     /// Create a new [`InputMap`] for keyboard and mouse.
@@ -107,6 +126,14 @@ impl PlayerAction {
             .with(Self::Jump, KeyCode::Space)
             .with(Self::Interact, KeyCode::KeyE)
             .with(Self::Attack, MouseButton::Left)
+            .with(Self::Pickup, KeyCode::KeyE)
+            .with(Self::Drop, KeyCode::KeyQ)
+            .with(Self::Consume, KeyCode::KeyC)
+            .with(Self::CycleNext, KeyCode::ArrowRight)
+            .with(Self::CyclePrev, KeyCode::ArrowLeft)
+            .with(Self::MoveItem, KeyCode::KeyM)
+            .with(Self::ToggleInventory, KeyCode::Tab)
+            .with(Self::InventoryModifier, KeyCode::AltLeft)
     }
 }
 
@@ -123,7 +150,7 @@ impl GamepadIndex {
 #[derive(Component, Default)]
 pub struct RequireAction;
 
-#[derive(Component, Deref)]
+#[derive(Component, Deref, Clone, Copy)]
 pub struct TargetAction(Entity);
 
 impl TargetAction {

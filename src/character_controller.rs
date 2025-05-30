@@ -55,7 +55,7 @@ fn check_grounded(
     spatial_query: SpatialQuery,
     cast_shape: Local<GroundCastShape>,
 ) {
-    const MAX_DIST: f32 = 0.2;
+    const MAX_DIST: f32 = 0.3;
     const SHAPE_CAST_CONFIG: ShapeCastConfig =
         ShapeCastConfig::from_max_distance(MAX_DIST);
 
@@ -234,16 +234,9 @@ fn movement(
             continue;
         }
 
-        // Compute yaw directly from that vector: atan2(x, z)
-        let world_move = (cam_forward * movement.y)
-            - (cam_left * movement.x).normalize_or_zero();
+        let world_move =
+            (cam_forward * movement.y) - (cam_left * movement.x);
         let world_move = Vec3::new(world_move.x, 0.0, world_move.y);
-
-        // Compute yaw and apply offset based on model orientation
-        // let yaw = world_move.y.atan2(world_move.x);
-
-        // Rotate to face movement direction
-        // transform.rotation = Quat::from_rotation_y(yaw);
 
         // Only allow sprinting if grounded
         // let can_sprint = *sprint && is_grounded.0;
@@ -408,7 +401,7 @@ fn kinematic_controller_collisions(
 
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
-#[require(IsGrounded, RequireAction)]
+#[require(IsGrounded, RequireAction, TransformInterpolation)]
 #[reflect(Component)]
 pub struct CharacterController {
     /// Acceleration applied during moveme movement.
