@@ -1,4 +1,3 @@
-use avian3d::prelude::*;
 use bevy::prelude::*;
 
 mod action;
@@ -19,9 +18,6 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             bevy_framepace::FramepacePlugin,
             bevy_skein::SkeinPlugin::default(),
-            PhysicsPlugins::default(),
-            // PhysicsPickingPlugin,
-            PhysicsDebugPlugin::default(),
         ))
         .add_plugins((
             action::ActionPlugin,
