@@ -1,10 +1,16 @@
 use bevy::color::palettes::tailwind::*;
+use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
 use bevy::ecs::query::QueryEntityError;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
+use crate::camera_controller::split_screen::{
+    QueryCameraA, QueryCameraB,
+};
+use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
+use crate::util::PropagateComponentAppExt;
 
 pub(super) struct PlayerPlugin;
 
@@ -12,7 +18,6 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<PlayerState>()
             .add_observer(setup_name_ui_for_player)
-            .add_observer(setup_player_tag)
             .add_systems(
                 OnEnter(PlayerState::Possessing),
                 setup_possession_ui,
@@ -26,7 +31,8 @@ impl Plugin for PlayerPlugin {
                 )
                     .run_if(in_state(PlayerState::Possessing)),
             )
-            .add_observer(handle_possession_triggers);
+            .add_observer(handle_possession_triggers)
+            .propagate_component::<PlayerType>();
 
         app.register_type::<PlayerType>();
     }
@@ -50,33 +56,27 @@ fn ready_inputs(
         ready = ready || gamepad.just_pressed(GamepadButton::South);
     }
 
-    if ready == false {
+    if !ready {
         return;
     }
 
     match player_a {
         PossessorType::Keyboard => {
-            commands.spawn((PlayerAction::new_kbm(), PlayerA));
+            commands.spawn(PlayerAction::new_kbm())
         }
-        PossessorType::Gamepad(entity) => {
-            commands.spawn((
-                PlayerAction::new_gamepad().with_gamepad(*entity),
-                PlayerA,
-            ));
-        }
+        PossessorType::Gamepad(entity) => commands
+            .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
+    .insert(PlayerType::A);
 
     match player_b {
         PossessorType::Keyboard => {
-            commands.spawn((PlayerAction::new_kbm(), PlayerB));
+            commands.spawn(PlayerAction::new_kbm())
         }
-        PossessorType::Gamepad(entity) => {
-            commands.spawn((
-                PlayerAction::new_gamepad().with_gamepad(*entity),
-                PlayerB,
-            ));
-        }
+        PossessorType::Gamepad(entity) => commands
+            .spawn(PlayerAction::new_gamepad().with_gamepad(*entity)),
     }
+    .insert(PlayerType::B);
 
     player_state.set(PlayerState::Possessed);
 }
@@ -408,11 +408,19 @@ fn centered_text(text: impl Into<String>) -> impl Bundle {
 fn setup_name_ui_for_player(
     trigger: Trigger<OnAdd, PlayerType>,
     mut commands: Commands,
-    q_players: Query<&PlayerType>,
+    q_players: Query<&PlayerType, With<CharacterController>>,
+    q_camera_a: QueryCameraA<Entity, With<Camera>>,
+    q_camera_b: QueryCameraB<Entity, With<Camera>>,
 ) -> Result {
     let entity = trigger.target();
 
-    let player_type = q_players.get(entity)?;
+    let Ok(player_type) = q_players.get(entity) else {
+        // Spawned entity might not be a character.
+        return Ok(());
+    };
+
+    let camera_a = q_camera_a.single()?;
+    let camera_b = q_camera_b.single()?;
 
     let world_ui =
         WorldUi::new(entity).with_world_offset(Vec3::Y * 0.5);
@@ -423,6 +431,7 @@ fn setup_name_ui_for_player(
                 padding: UiRect::all(Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
+                position_type: PositionType::Absolute,
                 ..default()
             },
             BorderRadius::all(Val::Px(8.0)),
@@ -441,35 +450,19 @@ fn setup_name_ui_for_player(
         )
     };
 
+    // Spawn ui only for the other player to view their floating tag.
     match player_type {
         PlayerType::A => {
-            commands.spawn(ui_bundle("Player A"));
+            commands.spawn((
+                ui_bundle("Player A"),
+                UiTargetCamera(camera_b),
+            ));
         }
         PlayerType::B => {
-            commands.spawn(ui_bundle("Player B"));
-        }
-    }
-
-    Ok(())
-}
-
-/// Setup player tag: [`PlayerA`] and [`PlayerB`]
-/// based on [`PlayerType`].
-fn setup_player_tag(
-    trigger: Trigger<OnAdd, PlayerType>,
-    mut commands: Commands,
-    q_players: Query<&PlayerType>,
-) -> Result {
-    let entity = trigger.target();
-
-    let player_type = q_players.get(entity)?;
-
-    match player_type {
-        PlayerType::A => {
-            commands.entity(entity).insert(PlayerA);
-        }
-        PlayerType::B => {
-            commands.entity(entity).insert(PlayerB);
+            commands.spawn((
+                ui_bundle("Player B"),
+                UiTargetCamera(camera_a),
+            ));
         }
     }
 
@@ -478,12 +471,46 @@ fn setup_player_tag(
 
 // TODO: Rename these to the character's name!
 
-#[derive(Component, Reflect, Debug, Clone, Copy)]
+#[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum PlayerType {
     A,
     B,
 }
+
+impl Component for PlayerType {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+
+    type Mutability = Immutable;
+
+    /// Setup player tag: [`PlayerA`] or [`PlayerB`]
+    /// based on [`PlayerType`].
+    fn register_component_hooks(hooks: &mut ComponentHooks) {
+        hooks.on_add(|mut world, hook| {
+            let entity = hook.entity;
+            let player_type = world.get::<Self>(hook.entity).unwrap();
+
+            match player_type {
+                PlayerType::A => {
+                    world.commands().entity(entity).insert(PlayerA);
+                }
+                PlayerType::B => {
+                    world.commands().entity(entity).insert(PlayerB);
+                }
+            }
+        });
+    }
+}
+
+/// A unique query to the [`PlayerA`] entity.
+#[allow(dead_code)]
+pub type QueryPlayerA<'w, 's, D, F = ()> =
+    Query<'w, 's, D, (F, With<PlayerA>, Without<PlayerB>)>;
+
+/// A unique query to the [`PlayerB`] entity.
+#[allow(dead_code)]
+pub type QueryPlayerB<'w, 's, D, F = ()> =
+    Query<'w, 's, D, (F, With<PlayerB>, Without<PlayerA>)>;
 
 /// A unique component tag for player A.
 #[derive(Component, Debug)]
@@ -524,7 +551,7 @@ impl PlayerPossessor {
 }
 
 /// Possesion type, can be keyboard or a specific gamepad.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Component, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PossessorType {
     Keyboard,
     Gamepad(Entity),

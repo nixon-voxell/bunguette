@@ -1,4 +1,3 @@
-use avian3d::prelude::*;
 use bevy::prelude::*;
 
 mod action;
@@ -6,9 +5,11 @@ mod asset_pipeline;
 mod camera_controller;
 mod character_controller;
 mod interaction;
+// mod inventory;
 mod physics;
 mod player;
 mod ui;
+mod util;
 
 pub struct AppPlugin;
 
@@ -17,9 +18,6 @@ impl Plugin for AppPlugin {
         app.add_plugins((
             bevy_framepace::FramepacePlugin,
             bevy_skein::SkeinPlugin::default(),
-            PhysicsPlugins::default(),
-            // PhysicsPickingPlugin,
-            PhysicsDebugPlugin::default(),
         ))
         .add_plugins((
             action::ActionPlugin,
@@ -29,6 +27,7 @@ impl Plugin for AppPlugin {
             camera_controller::CameraControllerPlugin,
             character_controller::MovementPlugin,
             interaction::InteractionPlugin,
+            // inventory::InventoryPlugin,
             player::PlayerPlugin,
         ));
 

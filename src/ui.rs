@@ -83,7 +83,8 @@ fn play_on_click(
     _: Trigger<Pointer<Click>>,
     mut screen: ResMut<NextState<Screen>>,
 ) {
-    screen.set(Screen::LevelSelection);
+    // screen.set(Screen::LevelSelection);
+    screen.set(Screen::EnterLevel);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -99,6 +100,6 @@ fn exit_on_click(
 pub enum Screen {
     #[default]
     Menu,
-    LevelSelection,
-    _EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
+    // LevelSelection,
+    EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
 }
