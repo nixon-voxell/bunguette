@@ -34,7 +34,8 @@ impl Plugin for AssetPipelinePlugin {
             );
 
         #[cfg(feature = "dev")]
-        app.register_type::<PrefabAssets>();
+        app.register_type::<SceneAssets>()
+            .register_type::<PrefabAssets>();
     }
 }
 
