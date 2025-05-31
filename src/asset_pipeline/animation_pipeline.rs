@@ -37,13 +37,19 @@ fn setup_prefab_animation_graphs(
 
         for (name, clip) in gltf.named_animations.iter() {
             index_map.insert(
-                name,
+                name.to_string(),
                 graph.add_clip(clip.clone(), 1.0, graph.root),
             );
         }
 
         let graph_handle = graphs.add(graph);
-        named_graphs.push((name.clone(), graph_handle));
+        named_graphs.push((
+            name.clone(),
+            AnimationGraphMap {
+                graph: graph_handle,
+                index_map,
+            },
+        ));
     }
 
     for (name, graph) in named_graphs {
@@ -80,6 +86,13 @@ fn setup_animation_player_target(
         }
     }
     commands.entity(scene_entity).insert(targets);
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "dev", derive(Reflect))]
+pub struct AnimationGraphMap {
+    pub graph: Handle<AnimationGraph>,
+    pub index_map: HashMap<String, AnimationNodeIndex>,
 }
 
 /// Map [`Name`] to their respective [`Entity`].

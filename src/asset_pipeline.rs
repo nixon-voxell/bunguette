@@ -1,3 +1,4 @@
+use animation_pipeline::AnimationGraphMap;
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
@@ -71,7 +72,7 @@ pub struct SceneAssets {
 pub struct PrefabAssets {
     #[asset(key = "prefabs", collection(typed, mapped))]
     pub named_prefabs: HashMap<String, Handle<Gltf>>,
-    pub named_graphs: HashMap<String, Handle<AnimationGraph>>,
+    pub named_graphs: HashMap<String, AnimationGraphMap>,
 }
 
 impl PrefabAssets {
