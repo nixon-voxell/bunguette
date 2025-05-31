@@ -4,7 +4,7 @@ use leafwing_input_manager::prelude::*;
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
 use crate::camera_controller::split_screen::{
-    QueryCameraA, QueryCameraB,
+    CameraType, QueryCameras,
 };
 use crate::inventory::Inventory;
 use crate::physics::GameLayer;
@@ -190,8 +190,7 @@ fn apply_gravity(
 /// Handles movement and jumping
 fn movement(
     time: Res<Time>,
-    q_camera_a: QueryCameraA<&GlobalTransform, With<Camera>>,
-    q_camera_b: QueryCameraB<&GlobalTransform, With<Camera>>,
+    q_cameras: QueryCameras<&GlobalTransform>,
     q_actions: Query<&ActionState<PlayerAction>>,
     mut q_characters: Query<(
         &CharacterController,
@@ -210,10 +209,12 @@ fn movement(
     ) in q_characters.iter_mut()
     {
         // Get camera transform.
-        let Ok(cam_global_transform) = (match player_type {
-            PlayerType::A => q_camera_a.single(),
-            PlayerType::B => q_camera_b.single(),
-        }) else {
+        let Ok(cam_global_transform) =
+            q_cameras.get(match player_type {
+                PlayerType::A => CameraType::A,
+                PlayerType::B => CameraType::B,
+            })
+        else {
             return;
         };
 
@@ -413,6 +414,9 @@ fn setup_character_collision(
     ));
 }
 
+#[derive(Component, Deref, DerefMut, Default)]
+pub struct IsGrounded(pub bool);
+
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
 #[require(
@@ -421,7 +425,7 @@ fn setup_character_collision(
     TransformInterpolation,
     CollidingEntities
 )]
-#[reflect(Component)]
+#[reflect(Component, Default)]
 pub struct CharacterController {
     /// Acceleration applied during moveme movement.
     pub acceleration: f32,
@@ -436,5 +440,16 @@ pub struct CharacterController {
     pub gravity: Vec3,
 }
 
-#[derive(Component, Deref, DerefMut, Default)]
-pub struct IsGrounded(pub bool);
+impl Default for CharacterController {
+    fn default() -> Self {
+        Self {
+            acceleration: 100.0,
+            max_walk: 5.0,
+            max_sprint: 10.0,
+            damping: 0.8,
+            jump_impulse: 4.0,
+            max_slope_angle: 1.41,
+            gravity: Vec3::new(0.0, -20.0, 0.0),
+        }
+    }
+}
