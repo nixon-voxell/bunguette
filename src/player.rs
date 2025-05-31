@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
 use crate::camera_controller::split_screen::{
-    QueryCameraA, QueryCameraB,
+    CameraType, QueryCameras,
 };
 use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
@@ -409,8 +409,7 @@ fn setup_name_ui_for_player(
     trigger: Trigger<OnAdd, PlayerType>,
     mut commands: Commands,
     q_players: Query<&PlayerType, With<CharacterController>>,
-    q_camera_a: QueryCameraA<Entity, With<Camera>>,
-    q_camera_b: QueryCameraB<Entity, With<Camera>>,
+    q_cameras: QueryCameras<Entity>,
 ) -> Result {
     let entity = trigger.target();
 
@@ -418,9 +417,6 @@ fn setup_name_ui_for_player(
         // Spawned entity might not be a character.
         return Ok(());
     };
-
-    let camera_a = q_camera_a.single()?;
-    let camera_b = q_camera_b.single()?;
 
     let world_ui =
         WorldUi::new(entity).with_world_offset(Vec3::Y * 0.5);
@@ -455,13 +451,13 @@ fn setup_name_ui_for_player(
         PlayerType::A => {
             commands.spawn((
                 ui_bundle("Player A"),
-                UiTargetCamera(camera_b),
+                UiTargetCamera(q_cameras.get_camera(CameraType::A)?),
             ));
         }
         PlayerType::B => {
             commands.spawn((
                 ui_bundle("Player B"),
-                UiTargetCamera(camera_a),
+                UiTargetCamera(q_cameras.get_camera(CameraType::B)?),
             ));
         }
     }
