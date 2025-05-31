@@ -3,6 +3,8 @@
 ({
     "prefabs": Files (
         paths: [
+            "prefabs/polo_bun.glb",
+            "prefabs/baguette.glb",
             "prefabs/rotisserie.glb",
         ],
     ),
