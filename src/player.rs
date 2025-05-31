@@ -1,7 +1,11 @@
 use bevy::color::palettes::tailwind::*;
 use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
-use bevy::ecs::query::QueryEntityError;
+use bevy::ecs::query::{
+    QueryData, QueryEntityError, QueryFilter, QuerySingleError,
+    ROQueryItem,
+};
 use bevy::ecs::spawn::SpawnWith;
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
@@ -493,6 +497,46 @@ impl Component for PlayerType {
                 }
             }
         });
+    }
+}
+
+/// A shorthand [`SystemParam`] for getting all types of players
+/// using exclusive queries.
+#[derive(SystemParam)]
+pub struct QueryPlayers<'w, 's, D, F = ()>
+where
+    D: QueryData + 'static,
+    F: QueryFilter + 'static,
+{
+    pub q_camera_a: QueryPlayerA<'w, 's, D, F>,
+    pub q_camera_b: QueryPlayerB<'w, 's, D, F>,
+}
+
+impl<D, F> QueryPlayers<'_, '_, D, F>
+where
+    D: QueryData + 'static,
+    F: QueryFilter + 'static,
+{
+    #[allow(dead_code)]
+    pub fn get(
+        &self,
+        player_type: PlayerType,
+    ) -> Result<ROQueryItem<'_, D>, QuerySingleError> {
+        match player_type {
+            PlayerType::A => self.q_camera_a.single(),
+            PlayerType::B => self.q_camera_b.single(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get_mut(
+        &mut self,
+        player_type: PlayerType,
+    ) -> Result<D::Item<'_>, QuerySingleError> {
+        match player_type {
+            PlayerType::A => self.q_camera_a.single_mut(),
+            PlayerType::B => self.q_camera_b.single_mut(),
+        }
     }
 }
 
