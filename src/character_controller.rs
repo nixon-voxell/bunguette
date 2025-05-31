@@ -6,6 +6,8 @@ use crate::action::{PlayerAction, RequireAction, TargetAction};
 use crate::camera_controller::split_screen::{
     QueryCameraA, QueryCameraB,
 };
+use crate::inventory::Inventory;
+use crate::physics::GameLayer;
 use crate::player::PlayerType;
 
 /// Plugin that sets up kinematic character movement
@@ -29,7 +31,8 @@ impl Plugin for MovementPlugin {
             PhysicsSchedule,
             kinematic_controller_collisions
                 .in_set(NarrowPhaseSet::Last),
-        );
+        )
+        .add_observer(setup_character_collision);
 
         app.register_type::<CharacterController>();
     }
@@ -399,9 +402,25 @@ fn kinematic_controller_collisions(
     }
 }
 
+// Observer to setup collision components when CharacterController is added
+fn setup_character_collision(
+    trigger: Trigger<OnAdd, CharacterController>,
+    mut commands: Commands,
+) {
+    commands.entity(trigger.target()).insert((
+        Inventory::default(),
+        CollisionLayers::new(GameLayer::Player, LayerMask::ALL),
+    ));
+}
+
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
-#[require(IsGrounded, RequireAction, TransformInterpolation)]
+#[require(
+    IsGrounded,
+    RequireAction,
+    TransformInterpolation,
+    CollidingEntities
+)]
 #[reflect(Component)]
 pub struct CharacterController {
     /// Acceleration applied during moveme movement.
