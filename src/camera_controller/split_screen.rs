@@ -228,7 +228,6 @@ where
 }
 
 /// A unique query to the [`CameraA`] entity.
-#[allow(dead_code)]
 pub type QueryCameraA<'w, 's, D, F = ()> = Query<
     'w,
     's,
@@ -237,7 +236,6 @@ pub type QueryCameraA<'w, 's, D, F = ()> = Query<
 >;
 
 /// A unique query to the [`CameraB`] entity.
-#[allow(dead_code)]
 pub type QueryCameraB<'w, 's, D, F = ()> = Query<
     'w,
     's,
@@ -246,7 +244,6 @@ pub type QueryCameraB<'w, 's, D, F = ()> = Query<
 >;
 
 /// A unique query to the [`CameraFull`] entity.
-#[allow(dead_code)]
 pub type QueryCameraFull<'w, 's, D, F = ()> = Query<
     'w,
     's,

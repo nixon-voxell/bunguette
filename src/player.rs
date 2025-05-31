@@ -476,6 +476,15 @@ pub enum PlayerType {
     B,
 }
 
+impl PlayerType {
+    pub fn prefab_name(&self) -> &str {
+        match self {
+            PlayerType::A => "prefabs/polo_bun.glb",
+            PlayerType::B => "prefabs/baguette.glb",
+        }
+    }
+}
+
 impl Component for PlayerType {
     const STORAGE_TYPE: StorageType = StorageType::Table;
 
@@ -541,12 +550,10 @@ where
 }
 
 /// A unique query to the [`PlayerA`] entity.
-#[allow(dead_code)]
 pub type QueryPlayerA<'w, 's, D, F = ()> =
     Query<'w, 's, D, (F, With<PlayerA>, Without<PlayerB>)>;
 
 /// A unique query to the [`PlayerB`] entity.
-#[allow(dead_code)]
 pub type QueryPlayerB<'w, 's, D, F = ()> =
     Query<'w, 's, D, (F, With<PlayerB>, Without<PlayerA>)>;
 
