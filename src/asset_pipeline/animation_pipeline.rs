@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::scene::SceneInstanceReady;
@@ -33,11 +35,20 @@ fn setup_prefab_animation_graphs(
             .ok_or("Prefab should have been loaded.")?;
 
         let mut graph = AnimationGraph::new();
-        let mut index_map = HashMap::new();
+        let mut node_map = HashMap::new();
 
         for (name, clip) in gltf.named_animations.iter() {
-            index_map.insert(
-                name.to_string(),
+            let Some(node_name) =
+                name.split('.').nth(1).map(|name| name.to_string())
+            else {
+                warn!(
+                    "Animation should have only 1 '.', got '{name}' instead."
+                );
+                continue;
+            };
+
+            node_map.insert(
+                node_name,
                 graph.add_clip(clip.clone(), 1.0, graph.root),
             );
         }
@@ -47,7 +58,7 @@ fn setup_prefab_animation_graphs(
             name.clone(),
             AnimationGraphMap {
                 graph: graph_handle,
-                index_map,
+                node_map: NodeMap(Arc::new(node_map)),
             },
         ));
     }
@@ -92,8 +103,12 @@ fn setup_animation_player_target(
 #[cfg_attr(feature = "dev", derive(Reflect))]
 pub struct AnimationGraphMap {
     pub graph: Handle<AnimationGraph>,
-    pub index_map: HashMap<String, AnimationNodeIndex>,
+    pub node_map: NodeMap,
 }
+
+#[derive(Component, Deref, Debug, Clone)]
+#[cfg_attr(feature = "dev", derive(Reflect))]
+pub struct NodeMap(Arc<HashMap<String, AnimationNodeIndex>>);
 
 /// Map [`Name`] to their respective [`Entity`].
 #[derive(Component, Deref, Default, Debug)]
