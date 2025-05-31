@@ -32,47 +32,69 @@ fn setup_item_collision(
             GameLayer::InventoryItem,
             LayerMask::ALL,
         ),
-        CollidingEntities::default(),
+        CollisionEventsEnabled,
     ));
 }
 
 /// Detect item collection
 fn detect_item_collisions(
-    mut commands: Commands,
-    q_players: Query<
-        (Entity, &CollidingEntities),
-        With<CharacterController>,
-    >,
+    mut collision_events: EventReader<CollisionStarted>,
+    q_players: Query<Entity, With<CharacterController>>,
     q_items: Query<&Item>,
+    q_collider_of: Query<&ColliderOf>,
     item_registry: ItemRegistry,
+    mut commands: Commands,
 ) {
     let Some(item_meta_asset) = item_registry.get() else {
         return;
     };
 
-    // Check each player's colliding entities
-    for (player_entity, colliding_entities) in q_players.iter() {
-        // Check all entities currently colliding with this player
-        for &colliding_entity in colliding_entities.iter() {
-            // Check if the colliding entity is an item
-            if let Ok(item) = q_items.get(colliding_entity) {
-                if let Some(item_meta) = item_meta_asset.get(&item.id)
-                {
-                    // Only auto-collect ingredients
-                    if item_meta.item_type == ItemType::Ingredient {
-                        info!(
-                            "Player {:?} collecting item {:?} via CollidingEntities",
-                            player_entity, colliding_entity
-                        );
+    for CollisionStarted(collider1, collider2) in
+        collision_events.read()
+    {
+        // Get the entities that own these colliders
+        let entity1 =
+            if let Ok(collider_of) = q_collider_of.get(*collider1) {
+                collider_of.body
+            } else {
+                *collider1
+            };
 
-                        // Trigger collection event
-                        commands.trigger_targets(
-                            ItemCollectionEvent {
-                                item: colliding_entity,
-                            },
-                            player_entity,
-                        );
-                    }
+        let entity2 =
+            if let Ok(collider_of) = q_collider_of.get(*collider2) {
+                collider_of.body
+            } else {
+                *collider2
+            };
+
+        // Check if one entity is a player and the other is an item
+        let (player_entity, item_entity) = if q_players
+            .contains(entity1)
+            && q_items.contains(entity2)
+        {
+            (entity1, entity2)
+        } else if q_players.contains(entity2)
+            && q_items.contains(entity1)
+        {
+            (entity2, entity1)
+        } else {
+            continue;
+        };
+
+        if let Ok(item) = q_items.get(item_entity) {
+            if let Some(item_meta) = item_meta_asset.get(&item.id) {
+                // Only auto-collect ingredients
+                if item_meta.item_type == ItemType::Ingredient {
+                    info!(
+                        "Player {:?} collecting item {:?} ('{}') via collision event",
+                        player_entity, item_entity, item.id
+                    );
+
+                    // Trigger collection event
+                    commands.trigger_targets(
+                        ItemCollectionEvent { item: item_entity },
+                        player_entity,
+                    );
                 }
             }
         }

@@ -423,7 +423,7 @@ pub struct IsGrounded(pub bool);
     IsGrounded,
     RequireAction,
     TransformInterpolation,
-    CollidingEntities
+    CollisionEventsEnabled
 )]
 #[reflect(Component, Default)]
 pub struct CharacterController {
