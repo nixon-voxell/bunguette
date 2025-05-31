@@ -450,14 +450,14 @@ fn setup_name_ui_for_player(
     match player_type {
         PlayerType::A => {
             commands.spawn((
-                ui_bundle("Player A"),
-                UiTargetCamera(q_cameras.get_camera(CameraType::A)?),
+                ui_bundle("Polobun"),
+                UiTargetCamera(q_cameras.get(CameraType::A)?),
             ));
         }
         PlayerType::B => {
             commands.spawn((
-                ui_bundle("Player B"),
-                UiTargetCamera(q_cameras.get_camera(CameraType::B)?),
+                ui_bundle("Baguette"),
+                UiTargetCamera(q_cameras.get(CameraType::B)?),
             ));
         }
     }
@@ -465,12 +465,12 @@ fn setup_name_ui_for_player(
     Ok(())
 }
 
-// TODO: Rename these to the character's name!
-
 #[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum PlayerType {
+    /// Polobun.
     A,
+    /// Baguette.
     B,
 }
 
