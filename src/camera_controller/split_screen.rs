@@ -30,8 +30,7 @@ impl Plugin for SplitScreenPlugin {
 fn set_camera_split_viewports(
     windows: Query<&Window>,
     mut resize_events: EventReader<WindowResized>,
-    mut q_camera_a: QueryCameraA<&mut Camera>,
-    mut q_camera_b: QueryCameraB<&mut Camera>,
+    mut q_cameras: QueryCameras<&mut Camera>,
 ) -> Result {
     // We need to dynamically resize the camera's viewports whenever the
     // window size changes so then each camera always takes up half the screen.
@@ -44,15 +43,12 @@ fn set_camera_split_viewports(
         let additional_pixel = window_size.x % 2;
         let split_size = UVec2::new(window_size.x / 2, window_size.y);
 
-        let mut camera_a = q_camera_a.single_mut()?;
-        let mut camera_b = q_camera_b.single_mut()?;
-
-        camera_a.viewport = Some(Viewport {
+        q_cameras.get_mut(CameraType::A)?.viewport = Some(Viewport {
             physical_position: UVec2::ZERO,
             physical_size: split_size,
             ..default()
         });
-        camera_b.viewport = Some(Viewport {
+        q_cameras.get_mut(CameraType::B)?.viewport = Some(Viewport {
             physical_position: UVec2::new(split_size.x, 0),
             physical_size: split_size
                 + UVec2::new(additional_pixel, 0),
@@ -187,8 +183,11 @@ impl Component for CameraType {
     }
 }
 
+/// A shorthand [`SystemParam`] for getting all types of cameras
+/// using exclusive queries. The filter `F` will default
+/// to `With<Camera>` but can be overwritten to something else.
 #[derive(SystemParam)]
-pub struct QueryCameras<'w, 's, D, F = ()>
+pub struct QueryCameras<'w, 's, D, F = With<Camera>>
 where
     D: QueryData + 'static,
     F: QueryFilter + 'static,
@@ -204,7 +203,7 @@ where
     F: QueryFilter + 'static,
 {
     #[allow(dead_code)]
-    pub fn get_camera(
+    pub fn get(
         &self,
         camera_type: CameraType,
     ) -> Result<ROQueryItem<'_, D>, QuerySingleError> {
@@ -216,7 +215,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn get_camera_mut(
+    pub fn get_mut(
         &mut self,
         camera_type: CameraType,
     ) -> Result<D::Item<'_>, QuerySingleError> {
