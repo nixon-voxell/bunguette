@@ -418,11 +418,9 @@ fn setup_name_ui_for_player(
         return Ok(());
     };
 
-    let world_ui =
-        WorldUi::new(entity).with_world_offset(Vec3::Y * 0.5);
-    let ui_bundle = move |name: &str| {
+    let ui_bundle = move |name: &str, height: f32| {
         (
-            world_ui,
+            WorldUi::new(entity).with_world_offset(Vec3::Y * height),
             Node {
                 padding: UiRect::all(Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
@@ -450,14 +448,14 @@ fn setup_name_ui_for_player(
     match player_type {
         PlayerType::A => {
             commands.spawn((
-                ui_bundle("Polobun"),
-                UiTargetCamera(q_cameras.get(CameraType::A)?),
+                ui_bundle("Polo Bun", 1.0),
+                UiTargetCamera(q_cameras.get(CameraType::B)?),
             ));
         }
         PlayerType::B => {
             commands.spawn((
-                ui_bundle("Baguette"),
-                UiTargetCamera(q_cameras.get(CameraType::B)?),
+                ui_bundle("Baguette", 1.5),
+                UiTargetCamera(q_cameras.get(CameraType::A)?),
             ));
         }
     }
@@ -468,7 +466,7 @@ fn setup_name_ui_for_player(
 #[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum PlayerType {
-    /// Polobun.
+    /// Polo Bun.
     A,
     /// Baguette.
     B,

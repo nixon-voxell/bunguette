@@ -37,11 +37,10 @@ fn third_person_camera(
         (&PlayerType, &GlobalTransform, &TargetAction),
         With<CameraTarget>,
     >,
-    mut q_cameras: QueryCameras<(
-        &ThirdPersonCamera,
-        &mut OrbitAngle,
-        &mut Transform,
-    )>,
+    mut q_cameras: QueryCameras<
+        (&ThirdPersonCamera, &mut OrbitAngle, &mut Transform),
+        With<CameraSnap>,
+    >,
     q_actions: Query<(
         &ActionState<PlayerAction>,
         &InputMap<PlayerAction>,
