@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::player::{
-    PlayerState, PlayerType, QueryPlayerA, QueryPlayerB,
-};
+use crate::player::{PlayerState, PlayerType, QueryPlayers};
 use crate::util::PropagateComponentAppExt;
 
 pub(super) struct ActionPlugin;
@@ -27,27 +25,19 @@ fn hookup_target_action(
         (&PlayerType, Entity),
         (With<RequireAction>, Without<TargetAction>),
     >,
-    q_action_a: QueryPlayerA<Entity, With<InputMap<PlayerAction>>>,
-    q_action_b: QueryPlayerB<Entity, With<InputMap<PlayerAction>>>,
+    q_actions: QueryPlayers<Entity, With<InputMap<PlayerAction>>>,
 ) {
     // Nothing to do!
     if q_require_actions.is_empty() {
         return;
     }
 
-    let Ok(action_a) = q_action_a.single() else {
-        return;
-    };
-    let Ok(action_b) = q_action_b.single() else {
-        return;
-    };
-
     for (player_type, entity) in q_require_actions.iter() {
-        let mut cmd = commands.entity(entity);
-        match player_type {
-            PlayerType::A => cmd.insert(TargetAction(action_a)),
-            PlayerType::B => cmd.insert(TargetAction(action_b)),
+        let Ok(action_entity) = q_actions.get(*player_type) else {
+            continue;
         };
+
+        commands.entity(entity).insert(TargetAction(action_entity));
     }
 }
 
