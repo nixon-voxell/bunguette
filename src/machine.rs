@@ -5,6 +5,7 @@ use recipe::RecipeMeta;
 use crate::action::{PlayerAction, TargetAction};
 use crate::interaction::{InteractionPlayer, MarkedItem};
 use crate::inventory::Inventory;
+use crate::inventory::item::ItemRegistry;
 use crate::machine::recipe::RecipeRegistry;
 
 mod machine_ui;
@@ -128,7 +129,6 @@ fn update_cooking_machines(
                     TowerProductionEvent,
                     machine_entity,
                 );
-                machine.complete_cooking();
             }
         }
     }
@@ -189,38 +189,24 @@ fn process_machine_interaction(
         } else {
             inventory.ingredients.remove(&ingredient.item_id);
         }
-
-        info!(
-            "Consumed {}x {} from player {:?} for recipe '{}'",
-            ingredient.quantity,
-            ingredient.item_id,
-            player_entity,
-            machine.recipe_id
-        );
     }
 
     // Start cooking
-    machine.start_cooking();
-    info!(
-        "Machine {:?} started cooking recipe '{}' - will produce {}x {} in {:.1}s",
-        machine_entity,
-        machine.recipe_id,
-        recipe.output_quantity,
-        recipe.output_id,
-        recipe.cooking_duration
-    );
+    machine.start_cooking(player_entity);
 }
 
 /// Observer that handles tower production when cooking completes
 fn handle_tower_production(
     trigger: Trigger<TowerProductionEvent>,
-    mut _commands: Commands,
-    q_machines: Query<&Machine>,
+    mut commands: Commands,
+    mut q_machines: Query<&mut Machine>,
+    mut q_inventories: Query<&mut Inventory>,
     recipe_registry: RecipeRegistry,
+    item_registry: ItemRegistry,
 ) {
     let machine_entity = trigger.target();
 
-    let Ok(machine) = q_machines.get(machine_entity) else {
+    let Ok(mut machine) = q_machines.get_mut(machine_entity) else {
         warn!("Machine entity {:?} not found", machine_entity);
         return;
     };
@@ -230,16 +216,53 @@ fn handle_tower_production(
         return;
     };
 
-    // Spawn tower item in the world near the machine
-    info!(
-        "Machine {:?} produced {}x {} using recipe '{}'",
-        machine_entity,
+    let Some(player_entity) = machine.occupied_by else {
+        warn!(
+            "No player associated with completed machine {:?}",
+            machine_entity
+        );
+        return;
+    };
+
+    // Get item metadata for stack size validation
+    let Some(item_meta_asset) = item_registry.get() else {
+        warn!("Item registry not loaded yet");
+        return;
+    };
+
+    let Some(item_meta) = item_meta_asset.get(&recipe.output_id)
+    else {
+        warn!(
+            "Output item '{}' not found in item registry",
+            recipe.output_id
+        );
+        return;
+    };
+
+    // Ensure player has an inventory
+    if q_inventories.get(player_entity).is_err() {
+        commands.entity(player_entity).insert(Inventory::default());
+        info!("Created new inventory for player {:?}", player_entity);
+    }
+
+    let Ok(mut inventory) = q_inventories.get_mut(player_entity)
+    else {
+        warn!(
+            "Could not get inventory for player {:?}",
+            player_entity
+        );
+        return;
+    };
+
+    // Add tower to player's inventory
+    inventory.add_tower(
+        recipe.output_id.clone(),
         recipe.output_quantity,
-        recipe.output_id,
-        machine.recipe_id
+        item_meta.max_stack_size,
     );
 
-    // TODO: Spawn actual tower item entity in the world
+    // Complete cooking and reset machine state
+    machine.complete_cooking();
 }
 
 impl Machine {
@@ -251,9 +274,10 @@ impl Machine {
         registry.get_recipe(&self.recipe_id)
     }
 
-    pub fn start_cooking(&mut self) {
+    pub fn start_cooking(&mut self, player: Entity) {
         self.state = MachineState::Occupied;
         self.elapsed_time = 0.0;
+        self.occupied_by = Some(player);
     }
 
     pub fn is_cooking_done(
@@ -271,6 +295,7 @@ impl Machine {
     pub fn complete_cooking(&mut self) {
         self.state = MachineState::Ready;
         self.elapsed_time = 0.0;
+        self.occupied_by = None;
     }
 
     pub fn cooking_progress(
@@ -321,5 +346,8 @@ pub struct Machine {
     pub state: MachineState,
     /// The ID of the recipe to use from the registry
     pub recipe_id: String,
+    #[reflect(ignore)]
     pub elapsed_time: f32,
+    #[reflect(ignore)]
+    pub occupied_by: Option<Entity>,
 }
