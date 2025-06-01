@@ -1,15 +1,17 @@
+use std::sync::Arc;
+
 use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::scene::SceneInstanceReady;
 
-use super::{PrefabAssets, PrefabName, PrefabState};
+use super::{AssetState, PrefabAssets, PrefabName};
 
 pub(super) struct AnimationPipelinePlugin;
 
 impl Plugin for AnimationPipelinePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            OnEnter(PrefabState::LoadingAnimation),
+            OnEnter(AssetState::LoadingAnimation),
             setup_prefab_animation_graphs,
         )
         .add_observer(setup_animation_player_target);
@@ -23,7 +25,7 @@ fn setup_prefab_animation_graphs(
     mut prefabs: ResMut<PrefabAssets>,
     gltfs: Res<Assets<Gltf>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
-    mut state: ResMut<NextState<PrefabState>>,
+    mut state: ResMut<NextState<AssetState>>,
 ) -> Result {
     let mut named_graphs = Vec::new();
 
@@ -33,28 +35,43 @@ fn setup_prefab_animation_graphs(
             .ok_or("Prefab should have been loaded.")?;
 
         let mut graph = AnimationGraph::new();
-        let mut index_map = HashMap::new();
+        let mut node_map = HashMap::new();
 
         for (name, clip) in gltf.named_animations.iter() {
-            index_map.insert(
-                name,
+            let Some(node_name) =
+                name.split('.').nth(1).map(|name| name.to_string())
+            else {
+                warn!(
+                    "Animation should have exactly 1 '.', got '{name}' instead."
+                );
+                continue;
+            };
+
+            node_map.insert(
+                node_name,
                 graph.add_clip(clip.clone(), 1.0, graph.root),
             );
         }
 
         let graph_handle = graphs.add(graph);
-        named_graphs.push((name.clone(), graph_handle));
+        named_graphs.push((
+            name.clone(),
+            AnimationGraphMap {
+                graph: graph_handle,
+                node_map: NodeMap(Arc::new(node_map)),
+            },
+        ));
     }
 
     for (name, graph) in named_graphs {
-        prefabs.named_graphs.insert(name, graph);
+        prefabs.named_animations.insert(name, graph);
     }
 
     info!(
         "Loading state '{:?}' is done",
-        PrefabState::LoadingAnimation
+        AssetState::LoadingAnimation
     );
-    state.set(PrefabState::Loaded);
+    state.set(AssetState::Loaded);
 
     Ok(())
 }
@@ -81,6 +98,17 @@ fn setup_animation_player_target(
     }
     commands.entity(scene_entity).insert(targets);
 }
+
+#[derive(Debug)]
+#[cfg_attr(feature = "dev", derive(Reflect))]
+pub struct AnimationGraphMap {
+    pub graph: Handle<AnimationGraph>,
+    pub node_map: NodeMap,
+}
+
+#[derive(Component, Deref, Debug, Clone)]
+#[cfg_attr(feature = "dev", derive(Reflect))]
+pub struct NodeMap(Arc<HashMap<String, AnimationNodeIndex>>);
 
 /// Map [`Name`] to their respective [`Entity`].
 #[derive(Component, Deref, Default, Debug)]

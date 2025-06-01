@@ -26,7 +26,7 @@ impl Plugin for AppPlugin {
             physics::PhysicsPlugin,
             asset_pipeline::AssetPipelinePlugin,
             camera_controller::CameraControllerPlugin,
-            character_controller::MovementPlugin,
+            character_controller::CharacterControllerPlugin,
             interaction::InteractionPlugin,
             inventory::InventoryPlugin,
             player::PlayerPlugin,
