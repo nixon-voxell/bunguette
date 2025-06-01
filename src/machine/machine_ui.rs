@@ -160,7 +160,7 @@ fn update_machine_popup_ui(
         update_machine_content(
             &mut commands,
             content_entity,
-            &machine,
+            machine,
             item_meta_asset,
             &recipe_registry,
         );
