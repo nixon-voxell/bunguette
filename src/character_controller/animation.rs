@@ -83,7 +83,7 @@ fn setup_animation_graph(
     };
 
     let AnimationGraphMap { graph, node_map } =
-        prefabs.named_graphs.get(player_type.prefab_name()).ok_or(
+        prefabs.get_animation(player_type.prefab_name()).ok_or(
             format!("Unable to get animation for {player_type:?}!"),
         )?;
 

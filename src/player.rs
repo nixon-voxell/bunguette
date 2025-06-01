@@ -9,6 +9,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
+use crate::asset_pipeline::PrefabName;
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
@@ -477,10 +478,10 @@ pub enum PlayerType {
 }
 
 impl PlayerType {
-    pub fn prefab_name(&self) -> &str {
+    pub fn prefab_name(&self) -> PrefabName {
         match self {
-            PlayerType::A => "prefabs/polo_bun.glb",
-            PlayerType::B => "prefabs/baguette.glb",
+            PlayerType::A => PrefabName::FileName("polo_bun"),
+            PlayerType::B => PrefabName::FileName("baguette"),
         }
     }
 }

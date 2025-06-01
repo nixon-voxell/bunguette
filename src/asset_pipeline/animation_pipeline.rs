@@ -4,14 +4,14 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use bevy::scene::SceneInstanceReady;
 
-use super::{PrefabAssets, PrefabName, PrefabState};
+use super::{AssetState, PrefabAssets, PrefabName};
 
 pub(super) struct AnimationPipelinePlugin;
 
 impl Plugin for AnimationPipelinePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            OnEnter(PrefabState::LoadingAnimation),
+            OnEnter(AssetState::LoadingAnimation),
             setup_prefab_animation_graphs,
         )
         .add_observer(setup_animation_player_target);
@@ -25,7 +25,7 @@ fn setup_prefab_animation_graphs(
     mut prefabs: ResMut<PrefabAssets>,
     gltfs: Res<Assets<Gltf>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
-    mut state: ResMut<NextState<PrefabState>>,
+    mut state: ResMut<NextState<AssetState>>,
 ) -> Result {
     let mut named_graphs = Vec::new();
 
@@ -64,14 +64,14 @@ fn setup_prefab_animation_graphs(
     }
 
     for (name, graph) in named_graphs {
-        prefabs.named_graphs.insert(name, graph);
+        prefabs.named_animations.insert(name, graph);
     }
 
     info!(
         "Loading state '{:?}' is done",
-        PrefabState::LoadingAnimation
+        AssetState::LoadingAnimation
     );
-    state.set(PrefabState::Loaded);
+    state.set(AssetState::Loaded);
 
     Ok(())
 }

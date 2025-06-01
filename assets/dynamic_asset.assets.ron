@@ -12,4 +12,8 @@
     "scenes.default": File (
         path: "scenes/default_scene.glb",
     ),
+
+    "scenes.level1": File (
+        path: "scenes/bread_level.glb",
+    ),
 })
