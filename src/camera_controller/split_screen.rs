@@ -14,13 +14,16 @@ use bevy::render::camera::{CameraOutputMode, Viewport};
 use bevy::render::view::RenderLayers;
 use bevy::window::WindowResized;
 
+use crate::util::PropagateComponentAppExt;
+
 use super::UI_RENDER_LAYER;
 
 pub(super) struct SplitScreenPlugin;
 
 impl Plugin for SplitScreenPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, setup_camera_and_environment)
+        app.propagate_component::<CameraType>()
+            .add_systems(PreStartup, setup_camera_and_environment)
             .add_systems(Update, set_camera_split_viewports);
 
         app.register_type::<CameraType>();

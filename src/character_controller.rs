@@ -47,7 +47,7 @@ struct GroundCastShape(Collider);
 
 impl Default for GroundCastShape {
     fn default() -> Self {
-        Self(Collider::sphere(0.15))
+        Self(Collider::sphere(0.1))
     }
 }
 
@@ -63,16 +63,19 @@ fn check_grounded(
     cast_shape: Local<GroundCastShape>,
 ) {
     const MAX_DIST: f32 = 0.3;
-    const SHAPE_CAST_CONFIG: ShapeCastConfig =
-        ShapeCastConfig::from_max_distance(MAX_DIST);
+    const SHAPE_CAST_CONFIG: ShapeCastConfig = ShapeCastConfig {
+        max_distance: MAX_DIST,
+        ignore_origin_penetration: true,
+        ..ShapeCastConfig::DEFAULT
+    };
+    const RAY_DIRECTION: Dir3 = Dir3::NEG_Y;
 
     for (entity, global_transform, character, mut is_grounded) in
         q_characters.iter_mut()
     {
         let char_pos = global_transform.translation();
 
-        let ray_origin = char_pos;
-        let ray_direction = Dir3::NEG_Y;
+        let ray_origin = char_pos + Vec3::Y * 0.2;
 
         // Exclude the character's own entity from the raycast
         let filter = SpatialQueryFilter::default()
@@ -82,7 +85,7 @@ fn check_grounded(
             &cast_shape,
             ray_origin,
             Quat::IDENTITY,
-            ray_direction,
+            RAY_DIRECTION,
             &SHAPE_CAST_CONFIG,
             &filter,
         ) {

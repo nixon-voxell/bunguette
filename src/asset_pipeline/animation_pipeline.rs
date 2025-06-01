@@ -42,7 +42,7 @@ fn setup_prefab_animation_graphs(
                 name.split('.').nth(1).map(|name| name.to_string())
             else {
                 warn!(
-                    "Animation should have only 1 '.', got '{name}' instead."
+                    "Animation should have exactly 1 '.', got '{name}' instead."
                 );
                 continue;
             };

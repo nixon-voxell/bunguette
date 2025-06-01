@@ -1,10 +1,10 @@
 use bevy::animation::AnimationTarget;
 use bevy::prelude::*;
 
-use crate::asset_pipeline::PrefabAssets;
 use crate::asset_pipeline::animation_pipeline::{
     AnimationGraphMap, NodeMap,
 };
+use crate::asset_pipeline::{AssetState, PrefabAssets};
 use crate::player::PlayerType;
 
 use super::{CharacterController, IsGrounded, IsMoving};
@@ -13,8 +13,11 @@ pub(super) struct CharacterAnimationPlugin;
 
 impl Plugin for CharacterAnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, movement_animation)
-            .add_observer(setup_animation_graph);
+        app.add_systems(
+            Update,
+            (setup_animation_graph, movement_animation)
+                .run_if(in_state(AssetState::Loaded)),
+        );
     }
 }
 
@@ -67,33 +70,29 @@ fn movement_animation(
 }
 
 fn setup_animation_graph(
-    trigger: Trigger<OnAdd, AnimationTarget>,
     mut commands: Commands,
-    q_players: Query<
-        (&PlayerType, &AnimationTarget),
-        With<CharacterController>,
+    q_characters: Query<
+        (&PlayerType, &AnimationTarget, Entity),
+        (With<CharacterController>, Without<NodeMap>),
     >,
     prefabs: Res<PrefabAssets>,
 ) -> Result {
-    let entity = trigger.target();
+    for (player_type, animation_target, entity) in q_characters.iter()
+    {
+        let AnimationGraphMap { graph, node_map } = prefabs
+            .get_animation(player_type.prefab_name())
+            .ok_or(format!(
+                "Unable to get animation for {player_type:?}!"
+            ))?;
 
-    let Ok((player_type, animation_target)) = q_players.get(entity)
-    else {
-        return Ok(());
-    };
+        commands.entity(entity).insert(node_map.clone());
+        commands.entity(animation_target.player).insert((
+            AnimationGraphHandle(graph.clone()),
+            AnimationTransitions::new(),
+        ));
 
-    let AnimationGraphMap { graph, node_map } =
-        prefabs.get_animation(player_type.prefab_name()).ok_or(
-            format!("Unable to get animation for {player_type:?}!"),
-        )?;
-
-    commands.entity(entity).insert(node_map.clone());
-    commands.entity(animation_target.player).insert((
-        AnimationGraphHandle(graph.clone()),
-        AnimationTransitions::new(),
-    ));
-
-    info!("Setup animation graph for {player_type:?}.");
+        info!("Setup animation graph for {player_type:?}.");
+    }
 
     Ok(())
 }
