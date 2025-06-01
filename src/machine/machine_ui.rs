@@ -81,9 +81,8 @@ fn setup_machine_popup_ui(
                         },
                     ));
 
-                    // Content container
                     parent.spawn((
-                        MachineContentMarker,
+                        MachineContentMarker { machine_entity },
                         Node {
                             flex_direction: FlexDirection::Column,
                             align_items: AlignItems::Center,
@@ -129,7 +128,7 @@ fn update_machine_popup_ui(
     mut commands: Commands,
     time: Res<Time>,
     mut q_machines: Query<(&mut Machine, &MachinePopupUi)>,
-    q_content_markers: Query<Entity, With<MachineContentMarker>>,
+    q_content_markers: Query<(Entity, &MachineContentMarker)>,
     item_registry: ItemRegistry,
     recipe_registry: RecipeRegistry,
 ) {
@@ -141,25 +140,30 @@ fn update_machine_popup_ui(
         return;
     };
 
+    // Update cooking timers for all machines
     for (mut machine, _popup_ui) in q_machines.iter_mut() {
-        // Update cooking timer if machine is occupied
         if matches!(machine.state, MachineState::Occupied) {
             machine.elapsed_time += time.delta_secs();
         }
     }
 
-    // Update all content markers
-    for content_entity in q_content_markers.iter() {
-        // Find the first machine to update content with
-        if let Some((machine, _)) = q_machines.iter().next() {
-            update_machine_content(
-                &mut commands,
-                content_entity,
-                &machine,
-                item_meta_asset,
-                &recipe_registry,
-            );
-        }
+    // Update each content marker with its specific machine's data
+    for (content_entity, content_marker) in q_content_markers.iter() {
+        // Find the machine that owns this content marker
+        let Ok((machine, _)) =
+            q_machines.get(content_marker.machine_entity)
+        else {
+            continue;
+        };
+
+        // Update this specific machine's content
+        update_machine_content(
+            &mut commands,
+            content_entity,
+            &machine,
+            item_meta_asset,
+            &recipe_registry,
+        );
     }
 }
 
@@ -427,4 +431,6 @@ pub struct MachinePopupUi {
 
 /// Marker component for the content section of machine popup UI
 #[derive(Component)]
-struct MachineContentMarker;
+struct MachineContentMarker {
+    machine_entity: Entity,
+}
