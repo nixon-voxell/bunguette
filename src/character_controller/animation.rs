@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use bevy::animation::AnimationTarget;
 use bevy::prelude::*;
 
@@ -35,7 +37,10 @@ fn movement_animation(
             Or<(Changed<IsMoving>, Changed<IsGrounded>)>,
         ),
     >,
-    mut q_animation_players: Query<&mut AnimationPlayer>,
+    mut q_animation_players: Query<(
+        &mut AnimationPlayer,
+        &mut AnimationTransitions,
+    )>,
 ) -> Result {
     for (
         node_map,
@@ -45,24 +50,61 @@ fn movement_animation(
         player_type,
     ) in q_characters.iter()
     {
-        let mut animation_player =
+        let (mut anim_player, mut anim_transitions) =
             q_animation_players.get_mut(animation_target.player)?;
 
-        let walking_node =
-            *node_map.get("Walking").ok_or(format!(
-                "No walking animation found for {player_type:?}!"
-            ))?;
+        if is_grounded.0 == false {
+            let jump_node =
+                *node_map.get("JumpUp").ok_or(format!(
+                    "No idle animation found for {:?}!",
+                    player_type
+                ))?;
 
-        if is_moving.0 && is_grounded.0 {
-            if animation_player.is_playing_animation(walking_node)
-                == false
+            if anim_player.is_playing_animation(jump_node) == false {
+                anim_transitions
+                    .play(
+                        &mut anim_player,
+                        jump_node,
+                        Duration::from_millis(100),
+                    )
+                    .set_speed(2.0);
+            }
+
+            continue;
+        }
+
+        if is_moving.0 {
+            let walking_node =
+                *node_map.get("Walking").ok_or(format!(
+                    "No walking animation found for {:?}!",
+                    player_type
+                ))?;
+
+            if anim_player.is_playing_animation(walking_node) == false
             {
-                animation_player.play(walking_node).repeat();
-                debug!("Play walk for {player_type:?}!");
+                anim_transitions
+                    .play(
+                        &mut anim_player,
+                        walking_node,
+                        Duration::from_millis(200),
+                    )
+                    .repeat();
             }
         } else {
-            animation_player.stop(walking_node);
-            debug!("Stop walk for {player_type:?}!");
+            let idle_node = *node_map.get("Idle").ok_or(format!(
+                "No idle animation found for {:?}!",
+                player_type
+            ))?;
+
+            if anim_player.is_playing_animation(idle_node) == false {
+                anim_transitions
+                    .play(
+                        &mut anim_player,
+                        idle_node,
+                        Duration::from_millis(200),
+                    )
+                    .repeat();
+            }
         }
     }
 
