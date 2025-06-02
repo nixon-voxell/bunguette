@@ -69,7 +69,7 @@ fn update_tower_display(
         // Calculate position based on player type (bottom right)
         let base_x = match player_type {
             PlayerType::A => 800.0, // Right side for Player A
-            PlayerType::B => 800.0, // Right side for Player B
+            PlayerType::B => 1760.0, // Right side for Player B
         };
         let base_y = 20.0; // Bottom
 
@@ -217,7 +217,7 @@ fn update_ingredient_display(
 
         // Calculate position based on player type
         let base_x = match player_type {
-            PlayerType::A => 20.0,   // Left side for testing
+            PlayerType::A => 20.0,   // Left side
             PlayerType::B => 1000.0, // Right side
         };
         let base_y = 20.0; // Bottom
