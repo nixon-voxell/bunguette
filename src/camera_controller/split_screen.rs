@@ -22,7 +22,7 @@ pub(super) struct SplitScreenPlugin;
 
 impl Plugin for SplitScreenPlugin {
     fn build(&self, app: &mut App) {
-        app.propagate_component::<CameraType>()
+        app.propagate_component::<CameraType, Children>()
             .add_systems(PreStartup, setup_camera_and_environment)
             .add_systems(Update, set_camera_split_viewports);
 

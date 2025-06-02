@@ -335,7 +335,7 @@ fn operating_machine_ui(
     let progress =
         timer.elapsed_secs() / timer.duration().as_secs_f32();
 
-    let children = vec![
+    let children = [
         // Recipe name.
         commands
             .spawn((
