@@ -1,5 +1,6 @@
 use std::f32::consts::{FRAC_PI_2, TAU};
 
+use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy::render::view::RenderLayers;
 use leafwing_input_manager::prelude::*;
@@ -7,6 +8,7 @@ use split_screen::{CameraType, QueryCameras};
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
 use crate::asset_pipeline::CurrentScene;
+use crate::physics::GameLayer;
 use crate::player::PlayerType;
 
 pub mod split_screen;
@@ -17,24 +19,87 @@ pub(super) struct CameraControllerPlugin;
 
 impl Plugin for CameraControllerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(split_screen::SplitScreenPlugin);
+        app.add_plugins((
+            split_screen::SplitScreenPlugin,
+            // obstacle_visbility::ObstacleVisibilityPlugin,
+        ));
 
-        app.add_systems(
-            PostUpdate,
-            (
-                third_person_camera,
-                snap_camera,
-                setup_third_person_camera,
+        app.add_systems(Update, setup_third_person_camera)
+            .add_systems(
+                PostUpdate,
+                (
+                    third_person_camera,
+                    obstacle_snap_front,
+                    snap_camera,
+                )
+                    .chain()
+                    .after(TransformSystem::TransformPropagate),
             )
-                .chain()
-                .after(TransformSystem::TransformPropagate),
-        )
-        .add_observer(setup_directional_light);
+            .add_observer(setup_directional_light);
 
         app.register_type::<CameraSnap>()
             .register_type::<ThirdPersonCamera>()
             .register_type::<CameraTarget>();
     }
+}
+
+/// Snap to obstacle's front when it's blocking the
+/// main target's view.
+fn obstacle_snap_front(
+    q_colliders: Query<&RigidBodyColliders>,
+    q_camera_targets: Query<
+        (&PlayerType, &GlobalTransform, &ChildOf),
+        With<CameraTarget>,
+    >,
+    mut q_cameras: QueryCameras<&mut Transform, With<CameraSnap>>,
+    spatial_query: SpatialQuery,
+    cast_shape: Local<ViewCastShape>,
+) -> Result {
+    for (camera_type, target_transform, child_of) in
+        q_camera_targets.iter()
+    {
+        let mut camera_transform = match camera_type {
+            PlayerType::A => q_cameras.get_mut(CameraType::A),
+            PlayerType::B => q_cameras.get_mut(CameraType::B),
+        }?;
+
+        let target_translation = target_transform.translation();
+        let camera_translation = camera_transform.translation;
+        let diff = camera_translation - target_translation;
+
+        let config = ShapeCastConfig {
+            max_distance: diff.length(),
+            ..ShapeCastConfig::DEFAULT
+        };
+
+        let excluded_entities =
+            q_colliders.get(child_of.parent())?.collection().clone();
+
+        let mut mask = LayerMask::ALL;
+        mask.remove(GameLayer::Player);
+
+        // Exclude the character's own entity from the raycast
+        let filter = SpatialQueryFilter::default()
+            .with_excluded_entities(excluded_entities)
+            .with_mask(mask);
+
+        let direction = Dir3::new(diff)?;
+
+        // Cast from target to camera and find the
+        // closest obstacle to the target.
+        if let Some(hit) = spatial_query.cast_shape(
+            &cast_shape,
+            target_translation,
+            Quat::IDENTITY,
+            direction,
+            &config,
+            &filter,
+        ) {
+            camera_transform.translation = hit.point1;
+        }
+    }
+
+    Ok(())
 }
 
 fn third_person_camera(
@@ -84,8 +149,10 @@ fn third_person_camera(
         angle.pitch += aim_y;
 
         // Clamp pitch to prevent camera flipping overhead or underfoot.
-        angle.pitch =
-            angle.pitch.clamp(0.0, FRAC_PI_2 * config.max_pitch);
+        angle.pitch = angle.pitch.clamp(
+            FRAC_PI_2 * config.min_pitch,
+            FRAC_PI_2 * config.max_pitch,
+        );
 
         // Keep yaw within 0 to 2*PI range for consistency,
         // though not strictly necessary due to trigonometric
@@ -210,6 +277,9 @@ pub struct ThirdPersonCamera {
     /// Max pitch angle in percentage from 0 - 1.
     /// Will be multiplied by [`FRAC_PI_2`].
     pub max_pitch: f32,
+    /// Min pitch angle in percentage from 0 - 1.
+    /// Will be multiplied by [`FRAC_PI_2`].
+    pub min_pitch: f32,
 }
 
 impl Default for ThirdPersonCamera {
@@ -220,6 +290,7 @@ impl Default for ThirdPersonCamera {
             distance: 4.0,
             follow_speed: 10.0,
             max_pitch: 0.8,
+            min_pitch: 0.5,
         }
     }
 }
@@ -228,4 +299,13 @@ impl Default for ThirdPersonCamera {
 pub struct OrbitAngle {
     pub yaw: f32,
     pub pitch: f32,
+}
+
+#[derive(Deref)]
+struct ViewCastShape(Collider);
+
+impl Default for ViewCastShape {
+    fn default() -> Self {
+        Self(Collider::sphere(0.1))
+    }
 }

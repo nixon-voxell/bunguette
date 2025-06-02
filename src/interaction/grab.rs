@@ -25,8 +25,6 @@ impl Plugin for GrabPlugin {
     }
 }
 
-/// Reads the E key press and the current MarkedItem to send grab or release events without PlayerAction.
-// TODO: Use PlayerAction instead of KeyCode
 fn grab_input_system(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,

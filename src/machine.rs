@@ -160,6 +160,7 @@ impl Machine {
 
 /// Component representing a machine that can convert ingredients to towers
 #[derive(Component, Reflect, Debug, Clone)]
+#[component(immutable)]
 #[reflect(Component)]
 pub struct Machine {
     /// The ID of the recipe to use from the registry
