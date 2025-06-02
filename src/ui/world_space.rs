@@ -101,6 +101,7 @@ pub struct RelatedWorldUis(Vec<Entity>);
 /// Component for ui nodes to be transformed into world space
 /// based on the target entity's [`GlobalTransform`].
 #[derive(Component)]
+#[component(immutable)]
 #[relationship(relationship_target = RelatedWorldUis)]
 pub struct WorldUi {
     #[relationship]

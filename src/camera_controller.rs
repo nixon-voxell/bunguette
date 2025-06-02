@@ -160,11 +160,14 @@ fn setup_third_person_camera(
         let parent_transform = q_transforms.get(child_of.parent())?;
         *transform = *parent_transform;
 
-        commands.entity(entity).insert(ChildOf(
-            current_scene
-                .get()
-                .ok_or("Should have a scene loaded!")?,
-        ));
+        commands
+            .entity(entity)
+            .remove_parent_in_place()
+            .set_parent_in_place(
+                current_scene
+                    .get()
+                    .ok_or("Should have a scene loaded!")?,
+            );
     }
 
     Ok(())

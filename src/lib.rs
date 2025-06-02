@@ -6,6 +6,7 @@ mod camera_controller;
 mod character_controller;
 mod interaction;
 mod inventory;
+mod machine;
 mod physics;
 mod player;
 mod ui;
@@ -29,6 +30,7 @@ impl Plugin for AppPlugin {
             interaction::InteractionPlugin,
             inventory::InventoryPlugin,
             player::PlayerPlugin,
+            machine::MachinePlugin,
         ));
 
         #[cfg(feature = "dev")]
