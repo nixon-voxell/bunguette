@@ -20,7 +20,7 @@ impl Plugin for CharacterControllerPlugin {
         app.add_plugins(animation::CharacterAnimationPlugin);
 
         app.add_systems(
-            FixedUpdate,
+            Update,
             (
                 check_grounded,
                 apply_gravity,
