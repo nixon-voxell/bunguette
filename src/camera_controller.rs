@@ -6,6 +6,7 @@ use leafwing_input_manager::prelude::*;
 use split_screen::{CameraType, QueryCameras};
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
+use crate::asset_pipeline::CurrentScene;
 use crate::player::PlayerType;
 
 pub mod split_screen;
@@ -20,7 +21,11 @@ impl Plugin for CameraControllerPlugin {
 
         app.add_systems(
             PostUpdate,
-            (third_person_camera, snap_camera)
+            (
+                third_person_camera,
+                snap_camera,
+                setup_third_person_camera,
+            )
                 .chain()
                 .after(TransformSystem::TransformPropagate),
         )
@@ -140,6 +145,34 @@ fn snap_camera(
     Ok(())
 }
 
+/// Copy parent transform and clear the replace the parent
+/// with the [`CurrentScene`]'s entity!
+fn setup_third_person_camera(
+    mut commands: Commands,
+    q_transforms: Query<&Transform, Without<ThirdPersonCamera>>,
+    mut q_cameras: Query<
+        (&ChildOf, &mut Transform, Entity),
+        Added<ThirdPersonCamera>,
+    >,
+    current_scene: Res<CurrentScene>,
+) -> Result {
+    for (child_of, mut transform, entity) in q_cameras.iter_mut() {
+        let parent_transform = q_transforms.get(child_of.parent())?;
+        *transform = *parent_transform;
+
+        commands
+            .entity(entity)
+            .remove_parent_in_place()
+            .set_parent_in_place(
+                current_scene
+                    .get()
+                    .ok_or("Should have a scene loaded!")?,
+            );
+    }
+
+    Ok(())
+}
+
 // TODO: Move to another script.
 fn setup_directional_light(
     trigger: Trigger<OnAdd, DirectionalLight>,
@@ -155,6 +188,11 @@ fn setup_directional_light(
 #[require(RequireAction)]
 #[reflect(Component)]
 pub struct CameraTarget;
+
+/// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct CameraSnap;
 
 #[derive(Component, Reflect)]
 #[require(OrbitAngle)]
@@ -191,7 +229,3 @@ pub struct OrbitAngle {
     pub yaw: f32,
     pub pitch: f32,
 }
-/// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct CameraSnap;

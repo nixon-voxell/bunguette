@@ -61,6 +61,10 @@ impl ItemRegistry<'_> {
     pub fn get(&self) -> Option<&ItemMetaAsset> {
         self.assets.get(&self.handle.0)
     }
+
+    pub fn get_item(&self, item_id: &str) -> Option<&ItemMeta> {
+        self.get()?.get(item_id)
+    }
 }
 
 #[derive(Default)]

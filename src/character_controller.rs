@@ -10,11 +10,15 @@ use crate::inventory::Inventory;
 use crate::physics::GameLayer;
 use crate::player::PlayerType;
 
-/// Plugin that sets up kinematic character movement
-pub(super) struct MovementPlugin;
+mod animation;
 
-impl Plugin for MovementPlugin {
+/// Plugin that sets up kinematic character movement
+pub(super) struct CharacterControllerPlugin;
+
+impl Plugin for CharacterControllerPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins(animation::CharacterAnimationPlugin);
+
         app.add_systems(
             Update,
             (
@@ -43,56 +47,63 @@ struct GroundCastShape(Collider);
 
 impl Default for GroundCastShape {
     fn default() -> Self {
-        Self(Collider::sphere(0.15))
+        Self(Collider::sphere(0.1))
     }
 }
 
 /// Check grounded state by raycasting downwards.
 fn check_grounded(
     mut q_characters: Query<(
-        Entity,
         &GlobalTransform,
         &CharacterController,
         &mut IsGrounded,
+        &RigidBodyColliders,
     )>,
     spatial_query: SpatialQuery,
     cast_shape: Local<GroundCastShape>,
 ) {
     const MAX_DIST: f32 = 0.3;
-    const SHAPE_CAST_CONFIG: ShapeCastConfig =
-        ShapeCastConfig::from_max_distance(MAX_DIST);
+    const SHAPE_CAST_CONFIG: ShapeCastConfig = ShapeCastConfig {
+        max_distance: MAX_DIST,
+        ..ShapeCastConfig::DEFAULT
+    };
+    const RAY_DIRECTION: Dir3 = Dir3::NEG_Y;
 
-    for (entity, global_transform, character, mut is_grounded) in
+    for (global_transform, character, mut is_grounded, colliders) in
         q_characters.iter_mut()
     {
         let char_pos = global_transform.translation();
 
-        let ray_origin = char_pos;
-        let ray_direction = Dir3::NEG_Y;
+        let ray_origin = char_pos + Vec3::Y * 0.2;
+
+        let mut mask = LayerMask::ALL;
+        mask.remove(GameLayer::Player);
 
         // Exclude the character's own entity from the raycast
         let filter = SpatialQueryFilter::default()
-            .with_excluded_entities([entity]);
+            .with_excluded_entities(colliders.collection().clone())
+            .with_mask(mask);
 
         if let Some(hit) = spatial_query.cast_shape(
             &cast_shape,
             ray_origin,
             Quat::IDENTITY,
-            ray_direction,
+            RAY_DIRECTION,
             &SHAPE_CAST_CONFIG,
             &filter,
         ) {
             let slope_angle = hit.normal1.angle_between(Vec3::Y);
 
             // Check if the normal is valid and surface is walkable
-            if slope_angle.is_finite() {
-                is_grounded.0 =
-                    slope_angle <= character.max_slope_angle;
+            if slope_angle.is_finite()
+                && slope_angle <= character.max_slope_angle
+            {
+                is_grounded.set_if_neq(IsGrounded(true));
             } else {
-                is_grounded.0 = false;
+                is_grounded.set_if_neq(IsGrounded(false));
             }
         } else {
-            is_grounded.0 = false;
+            is_grounded.set_if_neq(IsGrounded(false));
         }
     }
 }
@@ -119,35 +130,26 @@ fn jump(
 
         if is_grounded.0 && action.just_pressed(&PlayerAction::Jump) {
             linear_velocity.0.y = character.jump_impulse;
-            is_grounded.0 = false;
+            is_grounded.set_if_neq(IsGrounded(false));
         }
     }
 }
 
 fn rotate_to_velocity(
     mut q_characters: Query<
-        (&mut Rotation, &LinearVelocity, &TargetAction),
+        (&mut Rotation, &LinearVelocity, &IsMoving),
         With<CharacterController>,
     >,
-    q_actions: Query<&ActionState<PlayerAction>>,
     time: Res<Time>,
 ) {
     const ROTATION_RATE: f32 = 10.0;
     let dt = time.delta_secs();
 
-    for (mut rotation, linear_velocity, target_action) in
+    for (mut rotation, linear_velocity, is_moving) in
         q_characters.iter_mut()
     {
-        let Ok(action) = q_actions.get(target_action.get()) else {
-            continue;
-        };
-
         // Rotate during movement only.
-        if action
-            .clamped_axis_pair(&PlayerAction::Move)
-            .length_squared()
-            <= f32::EPSILON
-        {
+        if is_moving.0 == false {
             continue;
         }
 
@@ -195,6 +197,7 @@ fn movement(
     mut q_characters: Query<(
         &CharacterController,
         &mut LinearVelocity,
+        &mut IsMoving,
         &TargetAction,
         &PlayerType,
     )>,
@@ -204,6 +207,7 @@ fn movement(
     for (
         character,
         mut linear_velocity,
+        mut is_moving,
         target_action,
         player_type,
     ) in q_characters.iter_mut()
@@ -235,8 +239,11 @@ fn movement(
             .clamp_length_max(1.0);
         if movement.length_squared() <= f32::EPSILON {
             // Ignore movement when it's negligible.
+            is_moving.set_if_neq(IsMoving(false));
             continue;
         }
+
+        is_moving.set_if_neq(IsMoving(true));
 
         let world_move =
             (cam_forward * movement.y) - (cam_left * movement.x);
@@ -403,27 +410,35 @@ fn kinematic_controller_collisions(
     }
 }
 
-// Observer to setup collision components when CharacterController is added
+/// Observer to setup collision layer when
+/// [`CharacterController`] is added.
 fn setup_character_collision(
     trigger: Trigger<OnAdd, CharacterController>,
     mut commands: Commands,
 ) {
-    commands.entity(trigger.target()).insert((
-        Inventory::default(),
-        CollisionLayers::new(GameLayer::Player, LayerMask::ALL),
-    ));
+    commands
+        .entity(trigger.target())
+        .insert(CollisionLayers::new(
+            GameLayer::Player,
+            LayerMask::ALL,
+        ));
 }
 
-#[derive(Component, Deref, DerefMut, Default)]
+#[derive(Component, Deref, DerefMut, Default, PartialEq, Eq)]
 pub struct IsGrounded(pub bool);
+
+#[derive(Component, Deref, DerefMut, Default, PartialEq, Eq)]
+pub struct IsMoving(pub bool);
 
 /// Marker for kinematic character bodies
 #[derive(Component, Reflect)]
 #[require(
     IsGrounded,
+    IsMoving,
     RequireAction,
+    Inventory,
     TransformInterpolation,
-    CollidingEntities
+    CollisionEventsEnabled
 )]
 #[reflect(Component, Default)]
 pub struct CharacterController {
