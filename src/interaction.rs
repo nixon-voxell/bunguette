@@ -194,12 +194,6 @@ pub struct MarkerPlayers(Vec<Entity>);
 #[relationship(relationship_target = MarkerPlayers)]
 pub struct MarkerOf(Entity);
 
-impl MarkerOf {
-    pub fn get(&self) -> Entity {
-        self.0
-    }
-}
-
 /// Entity that can perform interaction. Sphere intersection
 /// will happen from this player.
 #[derive(Component, Reflect)]

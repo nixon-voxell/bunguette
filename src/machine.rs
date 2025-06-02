@@ -41,7 +41,7 @@ fn handle_player_machine_interaction(
     for (marked_item, target_action, mut inventory, player_entity) in
         q_players.iter_mut()
     {
-        let machine_entity = marked_item.get();
+        let machine_entity = marked_item.entity();
         let Ok(machine) = q_machines.get(machine_entity) else {
             continue;
         };
@@ -75,7 +75,7 @@ fn handle_player_machine_interaction(
             ));
         } else {
             info!(
-                "Player {:?} doesn't have required ingredients for recipe '{}'",
+                "Player {} doesn't have required ingredients for recipe '{}'",
                 player_entity, machine.recipe_id
             );
         }
@@ -126,7 +126,7 @@ fn update_cooking_machines(
             .entity(entity)
             .remove::<(OperationTimer, OperatedBy)>();
 
-        let player_entity = operated_by.get();
+        let player_entity = operated_by.entity();
         if let Ok(mut inventory) =
             q_inventories.get_mut(player_entity)
         {
@@ -173,12 +173,6 @@ pub struct OperatingMachines(Vec<Entity>);
 #[derive(Component, Deref, Debug)]
 #[relationship(relationship_target = OperatingMachines)]
 pub struct OperatedBy(Entity);
-
-impl OperatedBy {
-    pub fn get(&self) -> Entity {
-        self.0
-    }
-}
 
 #[derive(Component, Deref, DerefMut)]
 pub struct OperationTimer(Timer);

@@ -49,7 +49,7 @@ fn grab_input_system(
                     },
                     player_entity,
                 );
-            } else if let Some(target) = marked.map(|m| m.get()) {
+            } else if let Some(target) = marked.map(|m| m.entity()) {
                 if q_grabbable.get(target).is_ok() {
                     commands.trigger_targets(
                         GrabEvent {
