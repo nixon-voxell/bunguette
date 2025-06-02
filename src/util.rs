@@ -20,13 +20,13 @@ impl PropagateComponentAppExt for App {
     }
 }
 
-/// Propagate component to the children hierarchy.
+/// Propagate component to the relationship hierarchy.
 pub fn propagate_component<C, R>(
     mut commands: Commands,
     q_relations: Query<
         (&C, &R),
-        // Just added or the children changes.
-        Or<(Added<C>, Changed<Children>)>,
+        // Just added or the relationship changes.
+        Or<(Added<C>, Changed<R>)>,
     >,
 ) where
     C: Component + Clone,
