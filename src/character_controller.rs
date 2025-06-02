@@ -54,10 +54,10 @@ impl Default for GroundCastShape {
 /// Check grounded state by raycasting downwards.
 fn check_grounded(
     mut q_characters: Query<(
-        Entity,
         &GlobalTransform,
         &CharacterController,
         &mut IsGrounded,
+        &RigidBodyColliders,
     )>,
     spatial_query: SpatialQuery,
     cast_shape: Local<GroundCastShape>,
@@ -65,21 +65,24 @@ fn check_grounded(
     const MAX_DIST: f32 = 0.3;
     const SHAPE_CAST_CONFIG: ShapeCastConfig = ShapeCastConfig {
         max_distance: MAX_DIST,
-        ignore_origin_penetration: true,
         ..ShapeCastConfig::DEFAULT
     };
     const RAY_DIRECTION: Dir3 = Dir3::NEG_Y;
 
-    for (entity, global_transform, character, mut is_grounded) in
+    for (global_transform, character, mut is_grounded, colliders) in
         q_characters.iter_mut()
     {
         let char_pos = global_transform.translation();
 
         let ray_origin = char_pos + Vec3::Y * 0.2;
 
+        let mut mask = LayerMask::ALL;
+        mask.remove(GameLayer::Player);
+
         // Exclude the character's own entity from the raycast
         let filter = SpatialQueryFilter::default()
-            .with_excluded_entities([entity]);
+            .with_excluded_entities(colliders.collection().clone())
+            .with_mask(mask);
 
         if let Some(hit) = spatial_query.cast_shape(
             &cast_shape,
@@ -407,15 +410,18 @@ fn kinematic_controller_collisions(
     }
 }
 
-// Observer to setup collision components when CharacterController is added
+/// Observer to setup collision layer when
+/// [`CharacterController`] is added.
 fn setup_character_collision(
     trigger: Trigger<OnAdd, CharacterController>,
     mut commands: Commands,
 ) {
-    commands.entity(trigger.target()).insert((
-        Inventory::default(),
-        CollisionLayers::new(GameLayer::Player, LayerMask::ALL),
-    ));
+    commands
+        .entity(trigger.target())
+        .insert(CollisionLayers::new(
+            GameLayer::Player,
+            LayerMask::ALL,
+        ));
 }
 
 #[derive(Component, Deref, DerefMut, Default, PartialEq, Eq)]
@@ -430,6 +436,7 @@ pub struct IsMoving(pub bool);
     IsGrounded,
     IsMoving,
     RequireAction,
+    Inventory,
     TransformInterpolation,
     CollisionEventsEnabled
 )]

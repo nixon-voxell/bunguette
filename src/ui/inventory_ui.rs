@@ -56,7 +56,7 @@ fn update_tower_display(
 
         // Collect towers to display
         let towers: Vec<_> = inventory
-            .towers
+            .towers()
             .iter()
             .filter(|(_, count)| **count > 0)
             .collect();
@@ -203,7 +203,7 @@ fn update_ingredient_display(
 
         // Collect ingredients to display
         let ingredients: Vec<_> = inventory
-            .get_all_ingredients()
+            .ingredients()
             .iter()
             .filter(|(_, count)| **count > 0)
             .collect();

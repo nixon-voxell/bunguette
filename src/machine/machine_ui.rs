@@ -5,12 +5,10 @@ use bevy::prelude::*;
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
-use crate::inventory::item::ItemRegistry;
 use crate::ui::world_space::WorldUi;
 
-use super::recipe::RecipeRegistry;
-use super::{Machine, MachineState};
-use crate::inventory::item::ItemMetaAsset;
+use super::recipe::{RecipeMeta, RecipeRegistry};
+use super::{Machine, OperationTimer};
 
 pub(super) struct MachineUiPlugin;
 
@@ -126,31 +124,18 @@ fn setup_machine_popup_ui(
 /// System to update machine popup UI content based on machine state
 fn update_machine_popup_ui(
     mut commands: Commands,
-    time: Res<Time>,
-    mut q_machines: Query<(&mut Machine, &MachinePopupUi)>,
+    q_machines: Query<(&Machine, Option<&OperationTimer>)>,
     q_content_markers: Query<(Entity, &MachineContentMarker)>,
-    item_registry: ItemRegistry,
     recipe_registry: RecipeRegistry,
 ) {
-    let Some(item_meta_asset) = item_registry.get() else {
-        return;
-    };
-
     let Some(_recipes) = recipe_registry.get() else {
         return;
     };
 
-    // Update cooking timers for all machines
-    for (mut machine, _popup_ui) in q_machines.iter_mut() {
-        if matches!(machine.state, MachineState::Occupied) {
-            machine.elapsed_time += time.delta_secs();
-        }
-    }
-
     // Update each content marker with its specific machine's data
     for (content_entity, content_marker) in q_content_markers.iter() {
         // Find the machine that owns this content marker
-        let Ok((machine, _)) =
+        let Ok((machine, operation_timer)) =
             q_machines.get(content_marker.machine_entity)
         else {
             continue;
@@ -161,7 +146,7 @@ fn update_machine_popup_ui(
             &mut commands,
             content_entity,
             machine,
-            item_meta_asset,
+            operation_timer,
             &recipe_registry,
         );
     }
@@ -171,7 +156,7 @@ fn update_machine_content(
     commands: &mut Commands,
     content_entity: Entity,
     machine: &Machine,
-    _item_meta_asset: &ItemMetaAsset,
+    operation_timer: Option<&OperationTimer>,
     recipe_registry: &RecipeRegistry,
 ) {
     // Clear existing children
@@ -218,208 +203,241 @@ fn update_machine_content(
         return;
     };
 
-    // Extract recipe details
-    let recipe_id = machine.recipe_id.clone();
-    let machine_state = machine.state.clone();
-    let remaining_time = machine.remaining_time(recipe_registry);
-    let progress = machine.cooking_progress(recipe_registry);
-    let ingredients = recipe.ingredients.clone();
-    let output_id = recipe.output_id.clone();
-    let output_quantity = recipe.output_quantity;
-    let cooking_duration = recipe.cooking_duration;
-
-    match machine_state {
-        MachineState::Ready => {
-            commands.entity(content_entity).insert(Children::spawn(
-                SpawnWith(move |parent: &mut ChildSpawner| {
-                    // Recipe name
-                    parent.spawn((
-                        Text::new(
-                            recipe_id
-                                .replace('_', " ")
-                                .to_uppercase(),
-                        ),
-                        TextLayout::new_with_justify(
-                            JustifyText::Center,
-                        ),
-                        TextFont {
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(CYAN_300.into()),
-                        Node {
-                            margin: UiRect::bottom(Val::Px(12.0)),
-                            ..default()
-                        },
-                    ));
-
-                    // Ingredients
-                    for ingredient in &ingredients {
-                        let color = SLATE_200;
-
-                        parent.spawn((
-                            Text::new(format!(
-                                "{} x{}",
-                                ingredient.item_id.replace('_', " "),
-                                ingredient.quantity
-                            )),
-                            TextLayout::new_with_justify(
-                                JustifyText::Center,
-                            ),
-                            TextFont {
-                                font_size: 13.0,
-                                ..default()
-                            },
-                            TextColor(color.into()),
-                            Node {
-                                margin: UiRect::bottom(Val::Px(4.0)),
-                                ..default()
-                            },
-                        ));
-                    }
-
-                    // Separator line
-                    parent.spawn((
-                        Node {
-                            width: Val::Px(120.0),
-                            height: Val::Px(1.0),
-                            margin: UiRect::vertical(Val::Px(12.0)),
-                            ..default()
-                        },
-                        BackgroundColor(SLATE_600.into()),
-                    ));
-
-                    // Output
-                    parent.spawn((
-                        Text::new(format!(
-                            "{} x{}",
-                            output_id.replace('_', " "),
-                            output_quantity
-                        )),
-                        TextLayout::new_with_justify(
-                            JustifyText::Center,
-                        ),
-                        TextFont {
-                            font_size: 14.0,
-                            ..default()
-                        },
-                        TextColor(BLUE_300.into()),
-                        Node {
-                            margin: UiRect::bottom(Val::Px(8.0)),
-                            ..default()
-                        },
-                    ));
-
-                    // Cooking time
-                    parent.spawn((
-                        Text::new(format!(
-                            "Cooking Time: {:.1}s",
-                            cooking_duration
-                        )),
-                        TextLayout::new_with_justify(
-                            JustifyText::Center,
-                        ),
-                        TextFont {
-                            font_size: 11.0,
-                            ..default()
-                        },
-                        TextColor(GRAY_400.into()),
-                    ));
-                }),
-            ));
-        }
-        MachineState::Occupied => {
-            commands.entity(content_entity).insert(Children::spawn(SpawnWith(
-                move |parent: &mut ChildSpawner| {
-                    // Recipe name
-                    parent.spawn((
-                        Text::new(recipe_id.replace('_', " ").to_uppercase()),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextFont {
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(ORANGE_300.into()),
-                        Node {
-                            margin: UiRect::bottom(Val::Px(8.0)),
-                            ..default()
-                        },
-                    ));
-
-                    // Status
-                    parent.spawn((
-                        Text::new("Cooking..."),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextFont {
-                            font_size: 14.0,
-                            ..default()
-                        },
-                        TextColor(YELLOW_200.into()),
-                        Node {
-                            margin: UiRect::bottom(Val::Px(8.0)),
-                            ..default()
-                        },
-                    ));
-
-                    // Time remaining
-                    parent.spawn((
-                        Text::new(format!("{:.1}s remaining", remaining_time)),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextFont {
-                            font_size: 15.0,
-                            ..default()
-                        },
-                        TextColor(SLATE_200.into()),
-                        Node {
-                            margin: UiRect::bottom(Val::Px(12.0)),
-                            ..default()
-                        },
-                    ));
-
-                    // Progress bar container
-                    parent.spawn((
-                        Node {
-                            width: Val::Px(140.0),
-                            height: Val::Px(8.0),
-                            margin: UiRect::bottom(Val::Px(12.0)),
-                            ..default()
-                        },
-                        BackgroundColor(GRAY_700.into()),
-                        BorderRadius::all(Val::Px(4.0)),
-                        Children::spawn(SpawnWith(
-                            move |progress_parent: &mut ChildSpawner| {
-                                // Progress bar fill
-                                progress_parent.spawn((
-                                    Node {
-                                        width: Val::Percent(progress * 100.0),
-                                        height: Val::Percent(100.0),
-                                        ..default()
-                                    },
-                                    BackgroundColor(ORANGE_400.into()),
-                                    BorderRadius::all(Val::Px(4.0)),
-                                ));
-                            },
-                        )),
-                    ));
-
-                    // Output preview
-                    parent.spawn((
-                        Text::new(format!(
-                            "Producing: {} x{}",
-                            output_id.replace('_', " "),
-                            output_quantity
-                        )),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                        TextFont {
-                            font_size: 12.0,
-                            ..default()
-                        },
-                        TextColor(BLUE_200.into()),
-                    ));
-                },
-            )));
-        }
+    if let Some(operation_timer) = operation_timer {
+        operating_machine_ui(
+            commands,
+            content_entity,
+            machine,
+            recipe,
+            &operation_timer.0,
+        );
+    } else {
+        freed_machine_ui(commands, content_entity, machine, recipe);
     }
+}
+
+fn freed_machine_ui(
+    commands: &mut Commands,
+    content_entity: Entity,
+    machine: &Machine,
+    recipe: &RecipeMeta,
+) {
+    // Recipe name.
+    let mut children = vec![
+        commands
+            .spawn((
+                Text::new(
+                    machine
+                        .recipe_id
+                        .replace('_', " ")
+                        .to_uppercase(),
+                ),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(CYAN_300.into()),
+                Node {
+                    margin: UiRect::bottom(Val::Px(12.0)),
+                    ..default()
+                },
+            ))
+            .id(),
+    ];
+
+    // Ingredients.
+    for ingredient in recipe.ingredients.iter() {
+        children.push(
+            commands
+                .spawn((
+                    Text::new(format!(
+                        "{} x{}",
+                        ingredient.item_id.replace('_', " "),
+                        ingredient.quantity
+                    )),
+                    TextLayout::new_with_justify(JustifyText::Center),
+                    TextFont {
+                        font_size: 13.0,
+                        ..default()
+                    },
+                    TextColor(SLATE_200.into()),
+                    Node {
+                        margin: UiRect::bottom(Val::Px(4.0)),
+                        ..default()
+                    },
+                ))
+                .id(),
+        );
+    }
+
+    children.extend([
+        // Separator line.
+        commands
+            .spawn((
+                Node {
+                    width: Val::Px(120.0),
+                    height: Val::Px(1.0),
+                    margin: UiRect::vertical(Val::Px(12.0)),
+                    ..default()
+                },
+                BackgroundColor(SLATE_600.into()),
+            ))
+            .id(),
+        // Output.
+        commands
+            .spawn((
+                Text::new(format!(
+                    "{} x{}",
+                    recipe.output_id.replace('_', " "),
+                    recipe.output_quantity
+                )),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(BLUE_300.into()),
+                Node {
+                    margin: UiRect::bottom(Val::Px(8.0)),
+                    ..default()
+                },
+            ))
+            .id(),
+        // Cooking time.
+        commands
+            .spawn((
+                Text::new(format!(
+                    "Cooking Time: {:.1}s",
+                    recipe.cooking_duration
+                )),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 11.0,
+                    ..default()
+                },
+                TextColor(GRAY_400.into()),
+            ))
+            .id(),
+    ]);
+
+    commands.entity(content_entity).add_children(&children);
+}
+
+fn operating_machine_ui(
+    commands: &mut Commands,
+    content_entity: Entity,
+    machine: &Machine,
+    recipe: &RecipeMeta,
+    timer: &Timer,
+) {
+    let remaining_time = timer.remaining_secs();
+    let progress =
+        timer.elapsed_secs() / timer.duration().as_secs_f32();
+
+    let children = vec![
+        // Recipe name.
+        commands
+            .spawn((
+                Text::new(
+                    machine
+                        .recipe_id
+                        .replace('_', " ")
+                        .to_uppercase(),
+                ),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(ORANGE_300.into()),
+                Node {
+                    margin: UiRect::bottom(Val::Px(8.0)),
+                    ..default()
+                },
+            ))
+            .id(),
+        // Status.
+        commands
+            .spawn((
+                Text::new("Cooking..."),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(YELLOW_200.into()),
+                Node {
+                    margin: UiRect::bottom(Val::Px(8.0)),
+                    ..default()
+                },
+            ))
+            .id(),
+        // Time remaining.
+        commands
+            .spawn((
+                Text::new(format!(
+                    "{:.1}s remaining",
+                    remaining_time
+                )),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 15.0,
+                    ..default()
+                },
+                TextColor(SLATE_200.into()),
+                Node {
+                    margin: UiRect::bottom(Val::Px(12.0)),
+                    ..default()
+                },
+            ))
+            .id(),
+        // Progress bar container.
+        commands
+            .spawn((
+                Node {
+                    width: Val::Px(140.0),
+                    height: Val::Px(8.0),
+                    margin: UiRect::bottom(Val::Px(12.0)),
+                    ..default()
+                },
+                BackgroundColor(GRAY_700.into()),
+                BorderRadius::all(Val::Px(4.0)),
+                Children::spawn(SpawnWith(
+                    move |progress_parent: &mut ChildSpawner| {
+                        // Progress bar fill
+                        progress_parent.spawn((
+                            Node {
+                                width: Val::Percent(progress * 100.0),
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            BackgroundColor(ORANGE_400.into()),
+                            BorderRadius::all(Val::Px(4.0)),
+                        ));
+                    },
+                )),
+            ))
+            .id(),
+        // Output preview.
+        commands
+            .spawn((
+                Text::new(format!(
+                    "Producing: {} x{}",
+                    recipe.output_id.replace('_', " "),
+                    recipe.output_quantity
+                )),
+                TextLayout::new_with_justify(JustifyText::Center),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(BLUE_200.into()),
+            ))
+            .id(),
+    ];
+
+    commands.entity(content_entity).add_children(&children);
 }
 
 /// Component linking a machine to its popup UI entity
