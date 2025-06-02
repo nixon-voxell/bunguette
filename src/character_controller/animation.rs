@@ -32,10 +32,7 @@ fn movement_animation(
             &AnimationTarget,
             &PlayerType,
         ),
-        (
-            With<CharacterController>,
-            Or<(Changed<IsMoving>, Changed<IsGrounded>)>,
-        ),
+        With<CharacterController>,
     >,
     mut q_animation_players: Query<(
         &mut AnimationPlayer,
@@ -88,6 +85,7 @@ fn movement_animation(
                         walking_node,
                         Duration::from_millis(200),
                     )
+                    .set_speed(1.5)
                     .repeat();
             }
         } else {
