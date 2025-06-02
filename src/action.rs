@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
-use crate::player::{
-    PlayerState, PlayerType, QueryPlayerA, QueryPlayerB,
-};
+use crate::player::{PlayerState, PlayerType, QueryPlayers};
 use crate::util::PropagateComponentAppExt;
 
 pub(super) struct ActionPlugin;
@@ -27,27 +25,19 @@ fn hookup_target_action(
         (&PlayerType, Entity),
         (With<RequireAction>, Without<TargetAction>),
     >,
-    q_action_a: QueryPlayerA<Entity, With<InputMap<PlayerAction>>>,
-    q_action_b: QueryPlayerB<Entity, With<InputMap<PlayerAction>>>,
+    q_actions: QueryPlayers<Entity, With<InputMap<PlayerAction>>>,
 ) {
     // Nothing to do!
     if q_require_actions.is_empty() {
         return;
     }
 
-    let Ok(action_a) = q_action_a.single() else {
-        return;
-    };
-    let Ok(action_b) = q_action_b.single() else {
-        return;
-    };
-
     for (player_type, entity) in q_require_actions.iter() {
-        let mut cmd = commands.entity(entity);
-        match player_type {
-            PlayerType::A => cmd.insert(TargetAction(action_a)),
-            PlayerType::B => cmd.insert(TargetAction(action_b)),
+        let Ok(action_entity) = q_actions.get(*player_type) else {
+            continue;
         };
+
+        commands.entity(entity).insert(TargetAction(action_entity));
     }
 }
 
@@ -80,15 +70,8 @@ pub enum PlayerAction {
     Interact,
     Attack,
     // Inventory actions.
-    Pickup,
-    Drop,
-    Consume,
     CycleNext,
     CyclePrev,
-    MoveItem,
-    ToggleInventory,
-    #[actionlike(Button)]
-    InventoryModifier,
 }
 
 impl PlayerAction {
@@ -107,14 +90,8 @@ impl PlayerAction {
             .with(Self::Jump, GamepadButton::South)
             .with(Self::Interact, GamepadButton::West)
             .with(Self::Attack, GamepadButton::RightTrigger2)
-            .with(Self::Pickup, GamepadButton::West)
-            .with(Self::Drop, GamepadButton::North)
-            .with(Self::Consume, GamepadButton::LeftTrigger2)
-            .with(Self::CycleNext, GamepadButton::East)
-            .with(Self::CyclePrev, GamepadButton::West)
-            .with(Self::MoveItem, GamepadButton::RightTrigger)
-            .with(Self::ToggleInventory, GamepadButton::Select)
-            .with(Self::InventoryModifier, GamepadButton::LeftTrigger)
+            .with(Self::CycleNext, GamepadButton::DPadRight)
+            .with(Self::CyclePrev, GamepadButton::DPadLeft)
     }
 
     /// Create a new [`InputMap`] for keyboard and mouse.
@@ -126,14 +103,8 @@ impl PlayerAction {
             .with(Self::Jump, KeyCode::Space)
             .with(Self::Interact, KeyCode::KeyE)
             .with(Self::Attack, MouseButton::Left)
-            .with(Self::Pickup, KeyCode::KeyE)
-            .with(Self::Drop, KeyCode::KeyQ)
-            .with(Self::Consume, KeyCode::KeyC)
             .with(Self::CycleNext, KeyCode::ArrowRight)
             .with(Self::CyclePrev, KeyCode::ArrowLeft)
-            .with(Self::MoveItem, KeyCode::KeyM)
-            .with(Self::ToggleInventory, KeyCode::Tab)
-            .with(Self::InventoryModifier, KeyCode::AltLeft)
     }
 }
 

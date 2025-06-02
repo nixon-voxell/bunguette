@@ -3,12 +3,10 @@ use std::f32::consts::{FRAC_PI_2, TAU};
 use bevy::prelude::*;
 use bevy::render::view::RenderLayers;
 use leafwing_input_manager::prelude::*;
-use split_screen::{
-    CameraType, QueryCameraA, QueryCameraB, QueryCameraFull,
-    QueryCameras,
-};
+use split_screen::{CameraType, QueryCameras};
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
+use crate::asset_pipeline::CurrentScene;
 use crate::player::PlayerType;
 
 pub mod split_screen;
@@ -23,7 +21,11 @@ impl Plugin for CameraControllerPlugin {
 
         app.add_systems(
             PostUpdate,
-            (third_person_camera, snap_camera)
+            (
+                third_person_camera,
+                snap_camera,
+                setup_third_person_camera,
+            )
                 .chain()
                 .after(TransformSystem::TransformPropagate),
         )
@@ -40,11 +42,10 @@ fn third_person_camera(
         (&PlayerType, &GlobalTransform, &TargetAction),
         With<CameraTarget>,
     >,
-    mut q_cameras: QueryCameras<(
-        &ThirdPersonCamera,
-        &mut OrbitAngle,
-        &mut Transform,
-    )>,
+    mut q_cameras: QueryCameras<
+        (&ThirdPersonCamera, &mut OrbitAngle, &mut Transform),
+        With<CameraSnap>,
+    >,
     q_actions: Query<(
         &ActionState<PlayerAction>,
         &InputMap<PlayerAction>,
@@ -58,12 +59,8 @@ fn third_person_camera(
     {
         let (config, mut angle, mut camera_transform) =
             match camera_type {
-                PlayerType::A => {
-                    q_cameras.get_camera_mut(CameraType::A)
-                }
-                PlayerType::B => {
-                    q_cameras.get_camera_mut(CameraType::B)
-                }
+                PlayerType::A => q_cameras.get_mut(CameraType::A),
+                PlayerType::B => q_cameras.get_mut(CameraType::B),
             }?;
 
         let (action, input_map) =
@@ -116,9 +113,7 @@ fn third_person_camera(
 }
 
 fn snap_camera(
-    mut q_camera_a: QueryCameraA<&mut Transform, With<Camera>>,
-    mut q_camera_b: QueryCameraB<&mut Transform, With<Camera>>,
-    mut q_camera_full: QueryCameraFull<&mut Transform>,
+    mut q_cameras: QueryCameras<&mut Transform>,
     q_camera_snaps: Query<
         (&GlobalTransform, &CameraType),
         (
@@ -136,22 +131,43 @@ fn snap_camera(
         return Ok(());
     }
 
-    let mut camera_a = q_camera_a.single_mut()?;
-    let mut camera_b = q_camera_b.single_mut()?;
-    let mut camera_full = q_camera_full.single_mut()?;
-
     for (snap_global_transform, camera_type) in q_camera_snaps.iter()
     {
         let target_transform =
             snap_global_transform.compute_transform();
 
-        match camera_type {
-            CameraType::Full => *camera_full = target_transform,
-            CameraType::A => *camera_a = target_transform,
-            CameraType::B => *camera_b = target_transform,
-        }
+        let mut camera_transform = q_cameras.get_mut(*camera_type)?;
+        *camera_transform = target_transform;
 
         debug!("Snapped camera of type: {camera_type:?}");
+    }
+
+    Ok(())
+}
+
+/// Copy parent transform and clear the replace the parent
+/// with the [`CurrentScene`]'s entity!
+fn setup_third_person_camera(
+    mut commands: Commands,
+    q_transforms: Query<&Transform, Without<ThirdPersonCamera>>,
+    mut q_cameras: Query<
+        (&ChildOf, &mut Transform, Entity),
+        Added<ThirdPersonCamera>,
+    >,
+    current_scene: Res<CurrentScene>,
+) -> Result {
+    for (child_of, mut transform, entity) in q_cameras.iter_mut() {
+        let parent_transform = q_transforms.get(child_of.parent())?;
+        *transform = *parent_transform;
+
+        commands
+            .entity(entity)
+            .remove_parent_in_place()
+            .set_parent_in_place(
+                current_scene
+                    .get()
+                    .ok_or("Should have a scene loaded!")?,
+            );
     }
 
     Ok(())
@@ -172,6 +188,11 @@ fn setup_directional_light(
 #[require(RequireAction)]
 #[reflect(Component)]
 pub struct CameraTarget;
+
+/// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
+#[derive(Component, Reflect)]
+#[reflect(Component)]
+pub struct CameraSnap;
 
 #[derive(Component, Reflect)]
 #[require(OrbitAngle)]
@@ -208,7 +229,3 @@ pub struct OrbitAngle {
     pub yaw: f32,
     pub pitch: f32,
 }
-/// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct CameraSnap;

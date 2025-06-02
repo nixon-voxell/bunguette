@@ -1,12 +1,17 @@
 use bevy::color::palettes::tailwind::*;
 use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
-use bevy::ecs::query::QueryEntityError;
+use bevy::ecs::query::{
+    QueryData, QueryEntityError, QueryFilter, QuerySingleError,
+    ROQueryItem,
+};
 use bevy::ecs::spawn::SpawnWith;
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 
 use crate::action::{GamepadIndex, PlayerAction};
+use crate::asset_pipeline::PrefabName;
 use crate::camera_controller::split_screen::{
-    QueryCameraA, QueryCameraB,
+    CameraType, QueryCameras,
 };
 use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
@@ -409,8 +414,7 @@ fn setup_name_ui_for_player(
     trigger: Trigger<OnAdd, PlayerType>,
     mut commands: Commands,
     q_players: Query<&PlayerType, With<CharacterController>>,
-    q_camera_a: QueryCameraA<Entity, With<Camera>>,
-    q_camera_b: QueryCameraB<Entity, With<Camera>>,
+    q_cameras: QueryCameras<Entity>,
 ) -> Result {
     let entity = trigger.target();
 
@@ -419,14 +423,9 @@ fn setup_name_ui_for_player(
         return Ok(());
     };
 
-    let camera_a = q_camera_a.single()?;
-    let camera_b = q_camera_b.single()?;
-
-    let world_ui =
-        WorldUi::new(entity).with_world_offset(Vec3::Y * 0.5);
-    let ui_bundle = move |name: &str| {
+    let ui_bundle = move |name: &str, height: f32| {
         (
-            world_ui,
+            WorldUi::new(entity).with_world_offset(Vec3::Y * height),
             Node {
                 padding: UiRect::all(Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
@@ -454,14 +453,14 @@ fn setup_name_ui_for_player(
     match player_type {
         PlayerType::A => {
             commands.spawn((
-                ui_bundle("Player A"),
-                UiTargetCamera(camera_b),
+                ui_bundle("Polo Bun", 1.0),
+                UiTargetCamera(q_cameras.get(CameraType::B)?),
             ));
         }
         PlayerType::B => {
             commands.spawn((
-                ui_bundle("Player B"),
-                UiTargetCamera(camera_a),
+                ui_bundle("Baguette", 1.5),
+                UiTargetCamera(q_cameras.get(CameraType::A)?),
             ));
         }
     }
@@ -469,13 +468,22 @@ fn setup_name_ui_for_player(
     Ok(())
 }
 
-// TODO: Rename these to the character's name!
-
 #[derive(Reflect, Debug, Clone, Copy, PartialEq, Eq)]
 #[reflect(Component)]
 pub enum PlayerType {
+    /// Polo Bun.
     A,
+    /// Baguette.
     B,
+}
+
+impl PlayerType {
+    pub fn prefab_name(&self) -> PrefabName {
+        match self {
+            PlayerType::A => PrefabName::FileName("polo_bun"),
+            PlayerType::B => PrefabName::FileName("baguette"),
+        }
+    }
 }
 
 impl Component for PlayerType {
@@ -502,13 +510,51 @@ impl Component for PlayerType {
     }
 }
 
+/// A shorthand [`SystemParam`] for getting all types of players
+/// using exclusive queries.
+#[derive(SystemParam)]
+pub struct QueryPlayers<'w, 's, D, F = ()>
+where
+    D: QueryData + 'static,
+    F: QueryFilter + 'static,
+{
+    pub q_camera_a: QueryPlayerA<'w, 's, D, F>,
+    pub q_camera_b: QueryPlayerB<'w, 's, D, F>,
+}
+
+impl<D, F> QueryPlayers<'_, '_, D, F>
+where
+    D: QueryData + 'static,
+    F: QueryFilter + 'static,
+{
+    #[allow(dead_code)]
+    pub fn get(
+        &self,
+        player_type: PlayerType,
+    ) -> Result<ROQueryItem<'_, D>, QuerySingleError> {
+        match player_type {
+            PlayerType::A => self.q_camera_a.single(),
+            PlayerType::B => self.q_camera_b.single(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get_mut(
+        &mut self,
+        player_type: PlayerType,
+    ) -> Result<D::Item<'_>, QuerySingleError> {
+        match player_type {
+            PlayerType::A => self.q_camera_a.single_mut(),
+            PlayerType::B => self.q_camera_b.single_mut(),
+        }
+    }
+}
+
 /// A unique query to the [`PlayerA`] entity.
-#[allow(dead_code)]
 pub type QueryPlayerA<'w, 's, D, F = ()> =
     Query<'w, 's, D, (F, With<PlayerA>, Without<PlayerB>)>;
 
 /// A unique query to the [`PlayerB`] entity.
-#[allow(dead_code)]
 pub type QueryPlayerB<'w, 's, D, F = ()> =
     Query<'w, 's, D, (F, With<PlayerB>, Without<PlayerA>)>;
 

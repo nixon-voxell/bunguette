@@ -30,17 +30,22 @@ fn load_item_registry(
 #[derive(Asset, TypePath, Deref, Debug, Clone, Deserialize)]
 pub struct ItemMetaAsset(HashMap<String, ItemMeta>);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ItemType {
+    Tower,
+    Ingredient,
+}
+
 /// Metadata for each item type in the game - loaded from RON files.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ItemMeta {
-    pub name: String,
-    pub icon_path: Option<String>,
-    pub _description: Option<String>,
-    pub stackable: bool,
+    pub icon_path: String,
     pub max_stack_size: u32,
+    pub item_type: ItemType,
 
     #[serde(skip_serializing, skip_deserializing)]
-    pub icon: Option<Handle<Image>>,
+    pub icon: Handle<Image>,
 }
 
 #[derive(Resource)]
@@ -55,6 +60,10 @@ pub struct ItemRegistry<'w> {
 impl ItemRegistry<'_> {
     pub fn get(&self) -> Option<&ItemMetaAsset> {
         self.assets.get(&self.handle.0)
+    }
+
+    pub fn get_item(&self, item_id: &str) -> Option<&ItemMeta> {
+        self.get()?.get(item_id)
     }
 }
 
@@ -80,10 +89,10 @@ impl AssetLoader for ItemMetaAssetLoader {
         let mut asset = ron::from_str::<ItemMetaAsset>(&ron_str)
             .expect("Failed to parse items.ron");
 
+        // Load icons for each item meta
         for item_meta in asset.0.values_mut() {
-            if let Some(icon_path) = item_meta.icon_path.as_ref() {
-                item_meta.icon = Some(load_context.load(icon_path));
-            }
+            item_meta.icon =
+                load_context.load(item_meta.icon_path.as_str());
         }
 
         Ok(asset)

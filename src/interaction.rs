@@ -23,12 +23,10 @@ impl Plugin for InteractionPlugin {
 
         app.add_systems(
             Update,
-            (
-                setup_interactable_outline,
-                detect_interactables,
-                mark_item,
-            ),
-        );
+            (setup_interactable_outline, detect_interactables),
+        )
+        .add_observer(mark_item)
+        .add_observer(unmark_item);
 
         app.register_type::<Interactable>()
             .register_type::<InteractionPlayer>();
@@ -36,14 +34,15 @@ impl Plugin for InteractionPlugin {
 }
 
 fn detect_interactables(
+    mut commands: Commands,
     mut q_players: Query<
-        (&InteractionPlayer, &mut MarkedItem, Entity),
+        (&InteractionPlayer, Entity),
         (Changed<GlobalTransform>, Without<Occupied>),
     >,
     q_global_transforms: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
 ) -> Result {
-    for (player, mut marked_item, entity) in q_players.iter_mut() {
+    for (player, entity) in q_players.iter_mut() {
         let player_transform =
             q_global_transforms.get(entity).map_err(|_|
                 "`InteractionPlayer` should have a global transform!",
@@ -61,7 +60,7 @@ fn detect_interactables(
 
         // No items around.
         if item_entities.is_empty() {
-            marked_item.0 = None;
+            commands.entity(entity).remove::<MarkerOf>();
             continue;
         }
 
@@ -112,35 +111,35 @@ fn detect_interactables(
             }
         }
 
-        marked_item.0 = Some(item_entities[closest_idx]);
+        commands
+            .entity(entity)
+            .insert(MarkerOf(item_entities[closest_idx]));
     }
 
     Ok(())
 }
 
 fn mark_item(
-    mut q_marked_items: Query<
-        (&MarkedItem, &mut PrevMarkedItem),
-        Changed<MarkedItem>,
-    >,
+    trigger: Trigger<OnAdd, MarkerPlayers>,
     mut q_outlines: Query<&mut OutlineVolume>,
 ) {
-    for (marked, mut prev_marked) in q_marked_items.iter_mut() {
-        if let Some(mut outline) =
-            prev_marked.0.and_then(|e| q_outlines.get_mut(e).ok())
-        {
-            outline.visible = false;
-        }
+    let Ok(mut outline) = q_outlines.get_mut(trigger.target()) else {
+        return;
+    };
 
-        if let Some(mut outline) =
-            marked.0.and_then(|e| q_outlines.get_mut(e).ok())
-        {
-            outline.visible = true;
-            outline.colour = MARK_COLOR;
-        }
+    outline.visible = true;
+    outline.colour = MARK_COLOR;
+}
 
-        prev_marked.0 = marked.0;
-    }
+fn unmark_item(
+    trigger: Trigger<OnRemove, MarkerPlayers>,
+    mut q_outlines: Query<&mut OutlineVolume>,
+) {
+    let Ok(mut outline) = q_outlines.get_mut(trigger.target()) else {
+        return;
+    };
+
+    outline.visible = false;
 }
 
 fn setup_interactable_outline(
@@ -184,33 +183,30 @@ fn setup_interactable_outline(
 #[reflect(Component)]
 pub struct Interactable;
 
-/// Previously marked item, mostly for ressetting the outline value.
-#[derive(Component, Deref, DerefMut, Default, Debug, Clone, Copy)]
-pub struct PrevMarkedItem(pub Option<Entity>);
+/// Stores a list of player entities that is marking this entity.
+#[derive(Component, Deref, Default, Debug)]
+#[relationship_target(relationship = MarkerOf)]
+pub struct MarkerPlayers(Vec<Entity>);
 
-#[derive(Component, Deref, DerefMut, Default, Debug, Clone, Copy)]
-#[require(PrevMarkedItem)]
-pub struct MarkedItem(pub Option<Entity>);
+/// Stores the entity that is being marked.
+#[derive(Component, Deref, Debug)]
+#[component(immutable)]
+#[relationship(relationship_target = MarkerPlayers)]
+pub struct MarkerOf(Entity);
 
-/// Entity that can perform interaction.
-/// Raycast will happen from this player.
+/// Entity that can perform interaction. Sphere intersection
+/// will happen from this player.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
-#[require(MarkedItem)]
 pub struct InteractionPlayer {
     /// The interaction radius.
     pub range: f32,
     /// The interaction boundary, anything that is
-    /// closer than this range will be considered and ranked
+    /// closer than this range will be ranked
     /// based on their direction.
+    ///
+    /// *Note: This should be a smaller value than [`Self::range`]*
     pub boundary_range: f32,
-}
-
-#[derive(Component, Reflect)]
-#[reflect(Component)]
-pub struct TestBundle {
-    pub transform: Transform,
-    pub visibility: Visibility,
 }
 
 /// Tags the player as occupied when holding an item.
