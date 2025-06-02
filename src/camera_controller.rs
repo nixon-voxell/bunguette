@@ -46,18 +46,15 @@ impl Plugin for CameraControllerPlugin {
 /// Snap to obstacle's front when it's blocking the
 /// main target's view.
 fn obstacle_snap_front(
-    q_colliders: Query<&RigidBodyColliders>,
     q_camera_targets: Query<
-        (&PlayerType, &GlobalTransform, &ChildOf),
+        (&PlayerType, &GlobalTransform),
         With<CameraTarget>,
     >,
     mut q_cameras: QueryCameras<&mut Transform, With<CameraSnap>>,
     spatial_query: SpatialQuery,
     cast_shape: Local<ViewCastShape>,
 ) -> Result {
-    for (camera_type, target_transform, child_of) in
-        q_camera_targets.iter()
-    {
+    for (camera_type, target_transform) in q_camera_targets.iter() {
         let mut camera_transform = match camera_type {
             PlayerType::A => q_cameras.get_mut(CameraType::A),
             PlayerType::B => q_cameras.get_mut(CameraType::B),
@@ -72,16 +69,11 @@ fn obstacle_snap_front(
             ..ShapeCastConfig::DEFAULT
         };
 
-        let excluded_entities =
-            q_colliders.get(child_of.parent())?.collection().clone();
-
         let mut mask = LayerMask::ALL;
         mask.remove(GameLayer::Player);
 
         // Exclude the character's own entity from the raycast
-        let filter = SpatialQueryFilter::default()
-            .with_excluded_entities(excluded_entities)
-            .with_mask(mask);
+        let filter = SpatialQueryFilter::default().with_mask(mask);
 
         let direction = Dir3::new(diff)?;
 

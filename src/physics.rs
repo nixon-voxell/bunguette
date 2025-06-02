@@ -1,6 +1,8 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
+use crate::util::PropagateComponentAppExt;
+
 pub(super) struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
@@ -10,7 +12,9 @@ impl Plugin for PhysicsPlugin {
             // PhysicsPickingPlugin,
             PhysicsDebugPlugin::default(),
         ));
-        app.add_observer(setup_collision_layer);
+
+        app.add_observer(setup_collision_layer)
+            .propagate_component::<CollisionLayers, RigidBodyColliders>();
 
         app.register_type::<CollisionLayerConstructor>()
             .register_type::<GameLayer>();
