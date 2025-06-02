@@ -10,5 +10,10 @@
             max_stack_size: 1,
             item_type: tower,
         ),
+        "archer_tower": (
+            icon_path: "icons/archer_tower.png",
+            max_stack_size: 2,
+            item_type: tower,
+        ),
     }
 )

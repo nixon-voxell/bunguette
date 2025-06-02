@@ -77,8 +77,28 @@ fn update_tower_display(
 
         // Create UI elements for each tower
         for (i, (tower_id, count)) in towers.iter().enumerate() {
+            // Check if this tower is selected
+            let is_selected =
+                inventory.selected_tower.as_ref() == Some(tower_id);
+
             // Space items 80px apart
             let x_offset = (i as f32) * 80.0;
+
+            //  Determine colors and border based on selection state
+            let (background_color, border_color, border_width) =
+                if is_selected {
+                    (
+                        Color::srgba(1.0, 0.6, 0.3, 0.9),
+                        Color::srgba(1.0, 1.0, 0.0, 1.0),
+                        4.0,
+                    )
+                } else {
+                    (
+                        Color::srgba(0.8, 0.4, 0.2, 0.8),
+                        Color::srgba(1.0, 1.0, 1.0, 1.0),
+                        2.0,
+                    )
+                };
 
             // Create the tower item
             let tower_entity = commands
@@ -92,11 +112,11 @@ fn update_tower_display(
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         flex_direction: FlexDirection::Column,
-                        border: UiRect::all(Val::Px(2.0)),
+                        border: UiRect::all(Val::Px(border_width)),
                         ..default()
                     },
-                    BackgroundColor(Color::srgba(0.8, 0.4, 0.2, 0.8)),
-                    BorderColor(Color::srgba(1.0, 1.0, 1.0, 1.0)),
+                    BackgroundColor(background_color),
+                    BorderColor(border_color),
                     FocusPolicy::Block,
                     UI_RENDER_LAYER,
                 ))
@@ -162,13 +182,21 @@ fn update_tower_display(
                     }
 
                     // Show quantity
+                    let text_color = if is_selected {
+                        // Yellow text for selected
+                        Color::srgba(1.0, 1.0, 0.0, 1.0)
+                        // White text for normal
+                    } else {
+                        Color::WHITE
+                    };
+
                     parent.spawn((
                         Text::new(count.to_string()),
                         TextFont {
                             font_size: 16.0,
                             ..default()
                         },
-                        TextColor(Color::WHITE),
+                        TextColor(text_color),
                     ));
                 })
                 .id();

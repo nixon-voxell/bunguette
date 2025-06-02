@@ -2,7 +2,7 @@
     {
         "cannon_tower": (
             ingredients: [
-                (item_id: "health_potion", quantity: 2),
+                (item_id: "corn", quantity: 2),
             ],
             output_id: "cannon_tower",
             output_quantity: 1,
