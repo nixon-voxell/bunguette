@@ -242,6 +242,27 @@ impl Inventory {
         }
     }
 
+    /// Remove towers from the inventory
+    pub fn remove_tower(
+        &mut self,
+        tower_id: &str,
+        quantity: u32,
+    ) -> bool {
+        let current_count =
+            self.towers.get(tower_id).copied().unwrap_or(0);
+        if current_count >= quantity {
+            let new_count = current_count - quantity;
+            if new_count == 0 {
+                self.towers.remove(tower_id);
+            } else {
+                self.towers.insert(tower_id.to_string(), new_count);
+            }
+            true
+        } else {
+            false
+        }
+    }
+
     /// Add ingredients to the inventory with stack limit checking
     pub fn add_ingredient(
         &mut self,
