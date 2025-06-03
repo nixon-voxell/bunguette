@@ -85,8 +85,8 @@ fn show_placement_preview(
         With<CameraTarget>,
     >,
     q_tiles: Query<
-        (Entity, &GlobalTransform, &PlacementTile),
-        With<Sensor>,
+        (Entity, &GlobalTransform),
+        (With<PlacementTile>, Without<TileOccupied>),
     >,
     q_previews: Query<Entity, With<Preview>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -111,26 +111,21 @@ fn show_placement_preview(
 
         if let Some((_, target_global_transform, _)) = camera_target {
             let target_pos = target_global_transform.translation();
-            println!(
-                "Showing preview for {:?} in placement mode at: {:?}",
-                placement_player_type, target_pos
-            );
 
             let closest_tile = q_tiles
                 .iter()
-                .filter(|(_, _, tile)| !tile.occupied)
-                .map(|(entity, global_transform, tile)| {
+                .map(|(entity, global_transform)| {
                     let tile_pos = global_transform.translation();
                     let distance =
                         target_pos.distance_squared(tile_pos);
-                    (entity, tile_pos, tile, distance)
+                    (entity, tile_pos, distance)
                 })
-                .filter(|(_, _, _, distance)| *distance <= 36.0) // Within 6 units
-                .min_by(|(_, _, _, dist_a), (_, _, _, dist_b)| {
+                .filter(|(_, _, distance)| *distance <= 36.0)
+                .min_by(|(_, _, dist_a), (_, _, dist_b)| {
                     dist_a.partial_cmp(dist_b).unwrap()
                 });
 
-            if let Some((_, tile_pos, _, distance)) = closest_tile {
+            if let Some((_, tile_pos, distance)) = closest_tile {
                 println!(
                     "Preview for {:?} at tile: {:?}, distance: {:.2}",
                     placement_player_type,
@@ -138,6 +133,7 @@ fn show_placement_preview(
                     distance.sqrt()
                 );
 
+                // Spawn a preview cube at the tile position
                 commands.spawn((
                     Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))),
                     MeshMaterial3d(materials.add(StandardMaterial {
@@ -151,46 +147,26 @@ fn show_placement_preview(
                     ),
                     Preview,
                 ));
-
-                commands.spawn((
-                    Mesh3d(meshes.add(Cuboid::new(2.5, 0.1, 2.5))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgba(1.0, 1.0, 0.0, 0.9),
-                        alpha_mode: AlphaMode::Blend,
-                        emissive: LinearRgba::rgb(2.0, 2.0, 0.0),
-                        ..default()
-                    })),
-                    Transform::from_translation(
-                        tile_pos + Vec3::Y * 0.05,
-                    ),
-                    Preview,
-                ));
             }
-        } else {
-            println!(
-                "No camera target found for placement player {:?}",
-                placement_player_type
-            );
         }
     }
 }
 
+/// Places a turret on the closest available tile
 fn place_turret(
     mut commands: Commands,
-    // Find players in placement mode with inventory
     mut q_placement_players: Query<
         (Entity, &mut Inventory, &TargetAction, &PlayerType),
         (With<CharacterController>, With<InPlacementMode>),
     >,
     q_actions: Query<&ActionState<PlayerAction>>,
-    // Find camera targets
     q_camera_targets: Query<
         (Entity, &GlobalTransform, &PlayerType),
         With<CameraTarget>,
     >,
-    mut q_tiles: Query<
-        (Entity, &GlobalTransform, &mut PlacementTile),
-        With<Sensor>,
+    q_tiles: Query<
+        (Entity, &GlobalTransform),
+        (With<PlacementTile>, Without<TileOccupied>),
     >,
     q_previews: Query<Entity, With<Preview>>,
     item_registry: ItemRegistry,
@@ -204,17 +180,14 @@ fn place_turret(
         else {
             continue;
         };
-
         if !action_state.just_pressed(&PlayerAction::Attack) {
             continue;
         }
-
         let Some(selected_tower) = inventory.selected_tower.clone()
         else {
             continue;
         };
 
-        // Find the camera target for this specific player
         let camera_target = q_camera_targets.iter().find(
             |(target_entity, _, target_player_type)| {
                 *target_entity == player_entity
@@ -224,41 +197,30 @@ fn place_turret(
 
         let Some((_, target_global_transform, _)) = camera_target
         else {
-            println!(
-                "No camera target found for player {:?}",
-                player_type
-            );
             continue;
         };
-
         let player_pos = target_global_transform.translation();
 
-        // Use camera target position to find the closest valid placement tile
         let closest_tile_entity = q_tiles
             .iter()
-            .filter(|(_, _, tile)| !tile.occupied)
-            .map(|(entity, global_transform, tile)| {
+            .map(|(entity, global_transform)| {
                 let tile_pos = global_transform.translation();
                 let dist = tile_pos.distance_squared(player_pos);
-                (entity, tile_pos, dist, tile.occupied)
+                (entity, dist)
             })
-            .filter(|(_, _, _, occupied)| !*occupied)
-            .filter(|(_, _, dist, _)| *dist <= 36.0)
-            .min_by(|(_, _, dist_a, _), (_, _, dist_b, _)| {
+            .filter(|(_, dist)| *dist <= 36.0)
+            .min_by(|(_, dist_a), (_, dist_b)| {
                 dist_a.partial_cmp(dist_b).unwrap()
             })
-            .map(|(entity, _, _, _)| entity);
+            .map(|(entity, _)| entity);
 
         let Some(tile_entity) = closest_tile_entity else {
             continue;
         };
-
-        let Ok((_, tile_global_transform, mut tile)) =
-            q_tiles.get_mut(tile_entity)
+        let Ok((_, tile_global_transform)) = q_tiles.get(tile_entity)
         else {
             continue;
         };
-
         let tile_pos = tile_global_transform.translation();
 
         let Some(item_registry_asset) = item_registry.get() else {
@@ -272,13 +234,14 @@ fn place_turret(
         if item_meta.item_type != ItemType::Tower {
             continue;
         }
-
         if !inventory.remove_tower(&selected_tower, 1) {
             continue;
         }
 
-        tile.occupied = true;
+        // Mark tile as occupied
+        commands.entity(tile_entity).insert(TileOccupied);
 
+        // Spawn turret
         commands.spawn((
             Mesh3d(meshes.add(Cylinder::new(0.3, 1.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -296,7 +259,6 @@ fn place_turret(
         ));
 
         commands.entity(player_entity).remove::<InPlacementMode>();
-
         for preview in q_previews.iter() {
             commands.entity(preview).despawn();
         }
@@ -305,9 +267,10 @@ fn place_turret(
 
 #[derive(Component, Reflect, Clone, Debug)]
 #[reflect(Component)]
-pub struct PlacementTile {
-    pub occupied: bool,
-}
+pub struct PlacementTile;
+
+#[derive(Component, Clone, Debug)]
+pub struct TileOccupied;
 
 #[derive(Component)]
 pub struct InPlacementMode;
