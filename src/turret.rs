@@ -91,6 +91,7 @@ fn show_placement_preview(
     q_previews: Query<Entity, With<Preview>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    spatial_query: SpatialQuery,
 ) {
     for preview in q_previews.iter() {
         commands.entity(preview).despawn();
@@ -110,26 +111,53 @@ fn show_placement_preview(
         );
 
         if let Some((_, target_global_transform, _)) = camera_target {
-            let target_pos = target_global_transform.translation();
+            let target_position =
+                target_global_transform.translation();
 
-            let closest_tile = q_tiles
-                .iter()
-                .map(|(entity, global_transform)| {
-                    let tile_pos = global_transform.translation();
-                    let distance =
-                        target_pos.distance_squared(tile_pos);
-                    (entity, tile_pos, distance)
-                })
-                .filter(|(_, _, distance)| *distance <= 36.0)
-                .min_by(|(_, _, dist_a), (_, _, dist_b)| {
-                    dist_a.partial_cmp(dist_b).unwrap()
-                });
+            // Create a sphere collider for intersection testing around the camera target
+            let interaction_sphere = Collider::sphere(6.0);
 
-            if let Some((_, tile_pos, distance)) = closest_tile {
+            // Find tiles that intersect with the camera target's interaction sphere
+            let mut valid_tiles = Vec::new();
+
+            for (entity, tile_transform) in q_tiles.iter() {
+                let tile_position = tile_transform.translation();
+
+                // Check if the tile intersects with the interaction sphere
+                let intersections = spatial_query
+                    .shape_intersections(
+                        &interaction_sphere,
+                        target_position,
+                        Quat::IDENTITY,
+                        &SpatialQueryFilter::default(),
+                    );
+
+                // Check if this tile entity is in the intersections
+                if intersections.iter().any(|&intersected_entity| {
+                    intersected_entity == entity
+                }) {
+                    let distance_square = target_position
+                        .distance_squared(tile_position);
+                    valid_tiles.push((
+                        entity,
+                        tile_position,
+                        distance_square,
+                    ));
+                }
+            }
+
+            // Find the closest valid tile
+            if let Some((_, closest_tile_position, distance)) =
+                valid_tiles.into_iter().min_by(
+                    |(_, _, distance_a), (_, _, distance_b)| {
+                        distance_a.partial_cmp(distance_b).unwrap()
+                    },
+                )
+            {
                 println!(
                     "Preview for {:?} at tile: {:?}, distance: {:.2}",
                     placement_player_type,
-                    tile_pos,
+                    closest_tile_position,
                     distance.sqrt()
                 );
 
@@ -143,7 +171,7 @@ fn show_placement_preview(
                         ..default()
                     })),
                     Transform::from_translation(
-                        tile_pos + Vec3::Y * 1.0,
+                        closest_tile_position + Vec3::Y * 1.0,
                     ),
                     Preview,
                 ));
@@ -172,6 +200,7 @@ fn place_turret(
     item_registry: ItemRegistry,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    spatial_query: SpatialQuery,
 ) {
     for (player_entity, mut inventory, target_action, player_type) in
         q_placement_players.iter_mut()
@@ -199,20 +228,46 @@ fn place_turret(
         else {
             continue;
         };
-        let player_pos = target_global_transform.translation();
+        let target_position = target_global_transform.translation();
 
-        let closest_tile_entity = q_tiles
-            .iter()
-            .map(|(entity, global_transform)| {
-                let tile_pos = global_transform.translation();
-                let dist = tile_pos.distance_squared(player_pos);
-                (entity, dist)
+        // Create a sphere collider for intersection
+        let interaction_sphere = Collider::sphere(6.0);
+
+        // Find tiles that intersect with the camera target's interaction sphere
+        let mut valid_tiles = Vec::new();
+
+        for (entity, tile_transform) in q_tiles.iter() {
+            let tile_position = tile_transform.translation();
+
+            // Check if the tile intersects with the interaction sphere
+            let intersections = spatial_query.shape_intersections(
+                &interaction_sphere,
+                target_position,
+                Quat::IDENTITY,
+                &SpatialQueryFilter::default(),
+            );
+
+            // Check if this tile entity is in the intersections
+            if intersections.iter().any(|&intersected_entity| {
+                intersected_entity == entity
+            }) {
+                let distance_square =
+                    target_position.distance_squared(tile_position);
+                valid_tiles.push((
+                    entity,
+                    tile_position,
+                    distance_square,
+                ));
+            }
+        }
+
+        // Find the closest valid tile
+        let closest_tile_entity = valid_tiles
+            .into_iter()
+            .min_by(|(_, _, distance_a), (_, _, distance_b)| {
+                distance_a.partial_cmp(distance_b).unwrap()
             })
-            .filter(|(_, dist)| *dist <= 36.0)
-            .min_by(|(_, dist_a), (_, dist_b)| {
-                dist_a.partial_cmp(dist_b).unwrap()
-            })
-            .map(|(entity, _)| entity);
+            .map(|(entity, _, _)| entity);
 
         let Some(tile_entity) = closest_tile_entity else {
             continue;
