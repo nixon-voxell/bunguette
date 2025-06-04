@@ -5,6 +5,8 @@ use bevy::prelude::*;
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
+use crate::interaction::MarkerPlayers;
+use crate::player::PlayerType;
 use crate::ui::world_space::WorldUi;
 
 use super::recipe::{RecipeMeta, RecipeRegistry};
@@ -14,16 +16,17 @@ pub(super) struct MachineUiPlugin;
 
 impl Plugin for MachineUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(setup_machine_popup_ui)
-            .add_systems(Update, update_machine_popup_ui);
+        app.add_observer(setup_machine_ui).add_systems(
+            Update,
+            (machine_ui_visibility, machine_ui_content),
+        );
 
-        app.register_type::<Machine>()
-            .register_type::<MachinePopupUi>();
+        app.register_type::<Machine>();
     }
 }
 
 /// Setup world space popup UI for machines
-fn setup_machine_popup_ui(
+fn setup_machine_ui(
     trigger: Trigger<OnAdd, Machine>,
     mut commands: Commands,
     q_cameras: QueryCameras<Entity>,
@@ -39,180 +42,132 @@ fn setup_machine_popup_ui(
         return;
     };
 
-    let ui_bundle = move |height: f32| {
+    fn ui_bundle(machine_entity: Entity) -> impl Bundle {
         (
             WorldUi::new(machine_entity)
-                .with_world_offset(Vec3::Y * height),
+                .with_world_offset(Vec3::Y * 0.2),
+            MachineUiOf(machine_entity),
             Node {
-                padding: UiRect::all(Val::Px(20.0)),
+                padding: UiRect::all(Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
                 position_type: PositionType::Absolute,
                 flex_direction: FlexDirection::Column,
+                display: Display::None,
                 ..default()
             },
-            BorderRadius::all(Val::Px(12.0)),
-            BackgroundColor(SLATE_800.with_alpha(0.95).into()),
+            BorderRadius::all(Val::Px(6.0)),
+            BackgroundColor(ZINC_900.with_alpha(0.7).into()),
             BoxShadow::new(
-                Color::BLACK.with_alpha(0.2),
-                Val::Px(0.0),
+                ZINC_900.into(),
                 Val::Px(4.0),
-                Val::Px(16.0),
-                Val::Px(0.0),
+                Val::Px(4.0),
+                Val::Px(14.0),
+                Val::Px(12.0),
             ),
-            Children::spawn(SpawnWith(
-                move |parent: &mut ChildSpawner| {
-                    // Title
-                    parent.spawn((
-                        Text::new("Machine"),
-                        TextLayout::new_with_justify(
-                            JustifyText::Center,
-                        ),
-                        TextFont {
-                            font_size: 18.0,
-                            ..default()
-                        },
-                        TextColor(SLATE_100.into()),
-                        Node {
-                            margin: UiRect::bottom(Val::Px(16.0)),
-                            ..default()
-                        },
-                    ));
-
-                    parent.spawn((
-                        MachineContentMarker { machine_entity },
-                        Node {
-                            flex_direction: FlexDirection::Column,
-                            align_items: AlignItems::Center,
-                            min_width: Val::Px(220.0),
-                            ..default()
-                        },
-                        Children::spawn(SpawnWith(
-                            move |content_parent: &mut ChildSpawner| {
-                                content_parent.spawn((
-                                    Text::new("No Recipe Set"),
-                                    TextLayout::new_with_justify(JustifyText::Center),
-                                    TextFont {
-                                        font_size: 14.0,
-                                        ..default()
-                                    },
-                                    TextColor(GRAY_400.into()),
-                                ));
-                            },
-                        )),
-                    ));
-                },
-            )),
         )
-    };
+    }
 
     // Create UI for both cameras
-    let ui_entity_a = commands
-        .spawn((ui_bundle(2.0), UiTargetCamera(camera_a)))
-        .id();
+    commands
+        .spawn((ui_bundle(machine_entity), UiTargetCamera(camera_a)));
 
-    let _ui_entity_b = commands
-        .spawn((ui_bundle(2.0), UiTargetCamera(camera_b)))
-        .id();
+    commands
+        .spawn((ui_bundle(machine_entity), UiTargetCamera(camera_b)));
+}
 
-    // Store UI entity reference on the machine
-    commands.entity(machine_entity).insert(MachinePopupUi {
-        ui_entity: ui_entity_a,
-    });
+/// Set visibility of machine ui based on whether it is marked
+/// by the player.
+fn machine_ui_visibility(
+    q_machines: Query<
+        (Option<&MarkerPlayers>, &MachineUis),
+        With<Machine>,
+    >,
+    q_target_cameras: Query<&UiTargetCamera>,
+    q_camera_types: Query<&CameraType>,
+    q_player_types: Query<&PlayerType>,
+    mut q_nodes: Query<&mut Node>,
+) -> Result {
+    for (players, uis) in q_machines.iter() {
+        let mut marked_by_players = vec![];
+
+        if let Some(players) = players {
+            for player in players.iter() {
+                marked_by_players.push(*q_player_types.get(player)?);
+            }
+        }
+
+        for ui in uis.iter() {
+            let camera_type = q_target_cameras
+                .get(ui)
+                .and_then(|t| q_camera_types.get(t.entity()))?;
+
+            let player_type = match camera_type {
+                CameraType::A => PlayerType::A,
+                CameraType::B => PlayerType::B,
+                CameraType::Full => unreachable!(),
+            };
+
+            // Set node visibility based on who marked the machine.
+            let mut node = q_nodes.get_mut(ui)?;
+            if marked_by_players.contains(&player_type) {
+                node.display = Display::DEFAULT;
+            } else {
+                node.display = Display::None;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 /// System to update machine popup UI content based on machine state
-fn update_machine_popup_ui(
+fn machine_ui_content(
     mut commands: Commands,
-    q_machines: Query<(&Machine, Option<&OperationTimer>)>,
-    q_content_markers: Query<(Entity, &MachineContentMarker)>,
+    q_machines: Query<(&Machine, Option<&OperationTimer>, Entity)>,
+    q_machine_uis: Query<(Entity, &MachineUiOf)>,
     recipe_registry: RecipeRegistry,
 ) {
-    let Some(_recipes) = recipe_registry.get() else {
-        return;
-    };
-
     // Update each content marker with its specific machine's data
-    for (content_entity, content_marker) in q_content_markers.iter() {
+    for (root_id, ui_of) in q_machine_uis.iter() {
         // Find the machine that owns this content marker
-        let Ok((machine, operation_timer)) =
-            q_machines.get(content_marker.machine_entity)
+        let Ok((machine, operation_timer, machine_entity)) =
+            q_machines.get(ui_of.entity())
         else {
             continue;
         };
 
         // Update this specific machine's content
-        update_machine_content(
-            &mut commands,
-            content_entity,
-            machine,
-            operation_timer,
-            &recipe_registry,
-        );
-    }
-}
+        let commands: &mut Commands = &mut commands;
+        let recipe_registry: &RecipeRegistry = &recipe_registry;
+        // Clear existing children
+        commands.entity(root_id).despawn_related::<Children>();
 
-fn update_machine_content(
-    commands: &mut Commands,
-    content_entity: Entity,
-    machine: &Machine,
-    operation_timer: Option<&OperationTimer>,
-    recipe_registry: &RecipeRegistry,
-) {
-    // Clear existing children
-    commands
-        .entity(content_entity)
-        .despawn_related::<Children>();
+        // Handle empty recipe ID
+        if machine.recipe_id.is_empty() {
+            error!("No recipe set for machine {machine_entity}!");
+            continue;
+        }
 
-    // Handle empty recipe ID
-    if machine.recipe_id.is_empty() {
-        commands.entity(content_entity).insert(Children::spawn(
-            SpawnWith(move |parent: &mut ChildSpawner| {
-                parent.spawn((
-                    Text::new("No Recipe Set"),
-                    TextLayout::new_with_justify(JustifyText::Center),
-                    TextFont {
-                        font_size: 14.0,
-                        ..default()
-                    },
-                    TextColor(GRAY_400.into()),
-                ));
-            }),
-        ));
-        return;
-    }
+        let Some(recipe) = machine.get_recipe(recipe_registry) else {
+            error!(
+                "Recipe: {} does not exists for {machine_entity}!",
+                machine.recipe_id
+            );
+            continue;
+        };
 
-    let Some(recipe) = machine.get_recipe(recipe_registry) else {
-        let recipe_id = machine.recipe_id.clone();
-        commands.entity(content_entity).insert(Children::spawn(
-            SpawnWith(move |parent: &mut ChildSpawner| {
-                parent.spawn((
-                    Text::new(format!(
-                        "Recipe '{}' not found",
-                        recipe_id
-                    )),
-                    TextLayout::new_with_justify(JustifyText::Center),
-                    TextFont {
-                        font_size: 13.0,
-                        ..default()
-                    },
-                    TextColor(RED_400.into()),
-                ));
-            }),
-        ));
-        return;
-    };
-
-    if let Some(operation_timer) = operation_timer {
-        operating_machine_ui(
-            commands,
-            content_entity,
-            machine,
-            recipe,
-            &operation_timer.0,
-        );
-    } else {
-        freed_machine_ui(commands, content_entity, machine, recipe);
+        if let Some(operation_timer) = operation_timer {
+            operating_machine_ui(
+                commands,
+                root_id,
+                machine,
+                recipe,
+                &operation_timer.0,
+            );
+        } else {
+            freed_machine_ui(commands, root_id, machine, recipe);
+        };
     }
 }
 
@@ -440,15 +395,11 @@ fn operating_machine_ui(
     commands.entity(content_entity).add_children(&children);
 }
 
-/// Component linking a machine to its popup UI entity
-#[derive(Component, Reflect, Debug)]
-#[reflect(Component)]
-pub struct MachinePopupUi {
-    pub ui_entity: Entity,
-}
+#[derive(Component, Deref, Debug)]
+#[relationship_target(relationship = MachineUiOf)]
+pub struct MachineUis(Vec<Entity>);
 
-/// Marker component for the content section of machine popup UI
-#[derive(Component)]
-struct MachineContentMarker {
-    machine_entity: Entity,
-}
+/// Relation target for [`MachineUis`], relating the Ui for the [`Machine`].
+#[derive(Component, Deref, Debug)]
+#[relationship(relationship_target = MachineUis)]
+pub struct MachineUiOf(Entity);
