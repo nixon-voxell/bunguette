@@ -45,7 +45,9 @@ fn handle_placement_mode(
         };
 
         // TODO: Change to actual player action
-        if action_state.just_pressed(&PlayerAction::Interact) {
+        if action_state
+            .just_pressed(&PlayerAction::EnterPlacementMode)
+        {
             if placement_mode.is_some() {
                 commands
                     .entity(player_entity)
@@ -209,7 +211,7 @@ fn place_turret(
         else {
             continue;
         };
-        if !action_state.just_pressed(&PlayerAction::Attack) {
+        if !action_state.just_pressed(&PlayerAction::PlaceTurret) {
             continue;
         }
         let Some(selected_tower) = inventory.selected_tower.clone()
