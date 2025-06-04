@@ -40,6 +40,7 @@ fn detect_interactables(
         (Changed<GlobalTransform>, Without<Occupied>),
     >,
     q_global_transforms: Query<&GlobalTransform>,
+    q_collider_ofs: Query<&ColliderOf>,
     spatial_query: SpatialQuery,
 ) -> Result {
     for (player, entity) in q_players.iter_mut() {
@@ -54,8 +55,7 @@ fn detect_interactables(
             &Collider::sphere(player.range),
             player_translation,
             Quat::IDENTITY,
-            &SpatialQueryFilter::from_mask(GameLayer::Interactable)
-                .with_excluded_entities([entity]),
+            &SpatialQueryFilter::from_mask(GameLayer::Interactable),
         );
 
         // No items around.
@@ -111,9 +111,14 @@ fn detect_interactables(
             }
         }
 
-        commands
-            .entity(entity)
-            .insert(MarkerOf(item_entities[closest_idx]));
+        let mut marked_entity = item_entities[closest_idx];
+        // Use the rigidbody's entity as the reference point.
+        marked_entity = q_collider_ofs
+            .get(marked_entity)
+            .map(|c| c.body)
+            .unwrap_or(marked_entity);
+
+        commands.entity(entity).insert(MarkerOf(marked_entity));
     }
 
     Ok(())

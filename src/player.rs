@@ -37,7 +37,7 @@ impl Plugin for PlayerPlugin {
                     .run_if(in_state(PlayerState::Possessing)),
             )
             .add_observer(handle_possession_triggers)
-            .propagate_component::<PlayerType>();
+            .propagate_component::<PlayerType, Children>();
 
         app.register_type::<PlayerType>();
     }

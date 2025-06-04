@@ -14,7 +14,7 @@ impl Plugin for ActionPlugin {
                 hookup_target_action
                     .run_if(in_state(PlayerState::Possessed)),
             )
-            .add_observer(setup_gamepad_index).propagate_component::<TargetAction>();
+            .add_observer(setup_gamepad_index).propagate_component::<TargetAction, Children>();
     }
 }
 

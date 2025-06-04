@@ -8,6 +8,7 @@ use crate::inventory::Inventory;
 use crate::inventory::item::ItemRegistry;
 use crate::machine::recipe::RecipeRegistry;
 
+mod animation;
 mod machine_ui;
 pub mod recipe;
 
@@ -18,6 +19,7 @@ impl Plugin for MachinePlugin {
         app.add_plugins((
             machine_ui::MachineUiPlugin,
             recipe::RecipePlugin,
+            animation::MachineAnimationPlugin,
         ))
         .add_systems(Update, handle_player_machine_interaction)
         .add_systems(Update, update_cooking_machines);
@@ -59,7 +61,7 @@ fn handle_player_machine_interaction(
             recipe_registry.get_recipe(&machine.recipe_id)
         else {
             warn!(
-                "Recipe '{}' not found in registry",
+                "Recipe '{}' not found in registry!",
                 machine.recipe_id
             );
             continue;
@@ -130,7 +132,7 @@ fn update_cooking_machines(
         if let Ok(mut inventory) =
             q_inventories.get_mut(player_entity)
         {
-            // Add tower to player's inventory
+            // Add tower to player's inventory.
             inventory.add_tower(
                 recipe.output_id.clone(),
                 recipe.output_quantity,
@@ -148,6 +150,15 @@ fn update_cooking_machines(
     }
 }
 
+/// Component representing a machine that can convert ingredients to towers
+#[derive(Component, Reflect, Debug, Clone)]
+#[component(immutable)]
+#[reflect(Component)]
+pub struct Machine {
+    /// The ID of the recipe to use from the registry
+    pub recipe_id: String,
+}
+
 impl Machine {
     /// Get the recipe data from the registry
     pub fn get_recipe<'a>(
@@ -156,14 +167,17 @@ impl Machine {
     ) -> Option<&'a RecipeMeta> {
         registry.get_recipe(&self.recipe_id)
     }
-}
 
-/// Component representing a machine that can convert ingredients to towers
-#[derive(Component, Reflect, Debug, Clone)]
-#[reflect(Component)]
-pub struct Machine {
-    /// The ID of the recipe to use from the registry
-    pub recipe_id: String,
+    pub fn get_icon(
+        &self,
+        recipe_registry: &RecipeRegistry,
+        item_registry: &ItemRegistry,
+    ) -> Option<Handle<Image>> {
+        let recipe = self.get_recipe(recipe_registry)?;
+        let item = item_registry.get_item(&recipe.output_id)?;
+
+        Some(item.icon.clone())
+    }
 }
 
 #[derive(Component, Deref, Default, Debug)]
