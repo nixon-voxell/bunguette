@@ -8,6 +8,7 @@ use crate::inventory::Inventory;
 use crate::inventory::item::ItemRegistry;
 use crate::machine::recipe::RecipeRegistry;
 
+mod animation;
 mod machine_ui;
 pub mod recipe;
 
@@ -18,6 +19,7 @@ impl Plugin for MachinePlugin {
         app.add_plugins((
             machine_ui::MachineUiPlugin,
             recipe::RecipePlugin,
+            animation::MachineAnimationPlugin,
         ))
         .add_systems(Update, handle_player_machine_interaction)
         .add_systems(Update, update_cooking_machines);
