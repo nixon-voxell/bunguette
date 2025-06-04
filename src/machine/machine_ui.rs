@@ -40,7 +40,8 @@ fn setup_machine_ui(
     fn ui_bundle(machine_entity: Entity) -> impl Bundle {
         (
             WorldUi::new(machine_entity)
-                .with_world_offset(Vec3::Y * 0.2),
+                .with_world_offset(Vec3::new(0.0, 3.0, 0.0))
+                .with_ui_offset(Vec2::Y * 2.0),
             MachineUiOf(machine_entity),
             Node {
                 padding: UiRect::all(Val::Px(8.0)),

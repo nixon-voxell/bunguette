@@ -61,7 +61,7 @@ fn handle_player_machine_interaction(
             recipe_registry.get_recipe(&machine.recipe_id)
         else {
             warn!(
-                "Recipe '{}' not found in registry",
+                "Recipe '{}' not found in registry!",
                 machine.recipe_id
             );
             continue;
@@ -132,7 +132,7 @@ fn update_cooking_machines(
         if let Ok(mut inventory) =
             q_inventories.get_mut(player_entity)
         {
-            // Add tower to player's inventory
+            // Add tower to player's inventory.
             inventory.add_tower(
                 recipe.output_id.clone(),
                 recipe.output_quantity,
