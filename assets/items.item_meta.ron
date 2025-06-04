@@ -1,8 +1,8 @@
 (
     {
-        "health_potion": (
-            icon_path: "icons/potion.png",
-            max_stack_size: 5,
+        "corn": (
+            icon_path: "icons/corn.png",
+            max_stack_size: 10,
             item_type: ingredient,
         ),
         "cannon_tower": (
