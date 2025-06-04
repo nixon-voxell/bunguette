@@ -1,36 +1,39 @@
 use bevy::prelude::*;
 
 pub trait PropagateComponentAppExt {
-    fn propagate_component<C>(&mut self) -> &mut Self
+    fn propagate_component<C, R>(&mut self) -> &mut Self
     where
-        C: Component + Clone;
+        C: Component + Clone,
+        R: RelationshipTarget;
 }
 
 impl PropagateComponentAppExt for App {
-    fn propagate_component<C>(&mut self) -> &mut Self
+    fn propagate_component<C, R>(&mut self) -> &mut Self
     where
         C: Component + Clone,
+        R: RelationshipTarget,
     {
         self.add_systems(
             PostUpdate,
-            propagate_component::<C>.in_set(PropagateComponentSet),
+            propagate_component::<C, R>.in_set(PropagateComponentSet),
         )
     }
 }
 
-/// Propagate component to the children hierarchy.
-pub fn propagate_component<C>(
+/// Propagate component to the relationship hierarchy.
+pub fn propagate_component<C, R>(
     mut commands: Commands,
-    q_children: Query<
-        (&C, &Children),
-        // Just added or the children changes.
-        Or<(Added<C>, Changed<Children>)>,
+    q_relations: Query<
+        (&C, &R),
+        // Just added or the relationship changes.
+        Or<(Added<C>, Changed<R>)>,
     >,
 ) where
     C: Component + Clone,
+    R: RelationshipTarget,
 {
-    for (component, children) in q_children.iter() {
-        for entity in children.iter() {
+    for (component, targets) in q_relations.iter() {
+        for entity in targets.iter() {
             if let Ok(mut cmd) = commands.get_entity(entity) {
                 cmd.insert(component.clone());
             }

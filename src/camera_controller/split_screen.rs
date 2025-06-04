@@ -22,7 +22,7 @@ pub(super) struct SplitScreenPlugin;
 
 impl Plugin for SplitScreenPlugin {
     fn build(&self, app: &mut App) {
-        app.propagate_component::<CameraType>()
+        app.propagate_component::<CameraType, Children>()
             .add_systems(PreStartup, setup_camera_and_environment)
             .add_systems(Update, set_camera_split_viewports);
 
@@ -98,6 +98,11 @@ fn game_camera_bundle(
     let specular_map =
         asset_server.load("pisa_specular_rgb9e5_zstd.ktx2");
 
+    let projection = PerspectiveProjection {
+        fov: core::f32::consts::PI / 2.0,
+        ..default()
+    };
+
     (
         Camera3d {
             depth_load_op: Camera3dDepthLoadOp::Load,
@@ -110,6 +115,7 @@ fn game_camera_bundle(
             output_mode: CameraOutputMode::Skip,
             ..default()
         },
+        Projection::Perspective(projection),
         Tonemapping::None,
         Msaa::Off,
         Skybox {

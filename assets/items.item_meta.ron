@@ -2,17 +2,17 @@
     {
         "corn": (
             icon_path: "icons/corn.png",
-            max_stack_size: 5,
+            max_stack_size: 10,
             item_type: ingredient,
         ),
-        "cannon_tower": (
-            icon_path: "icons/tower.png",
-            max_stack_size: 1,
+        "gun_tower": (
+            icon_path: "icons/gun_tower.png",
+            max_stack_size: 10,
             item_type: tower,
         ),
-        "archer_tower": (
-            icon_path: "icons/archer_tower.png",
-            max_stack_size: 2,
+        "cannon_tower": (
+            icon_path: "icons/cannon_tower.png",
+            max_stack_size: 10,
             item_type: tower,
         ),
     }

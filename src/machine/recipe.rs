@@ -1,3 +1,4 @@
+use crate::asset_pipeline::PrefabName;
 use crate::inventory::item::{ItemRegistry, ItemType};
 use bevy::asset::{AssetLoader, io::Reader};
 use bevy::asset::{AsyncReadExt, LoadContext};
@@ -107,6 +108,13 @@ pub struct RecipeMeta {
     pub output_id: String,
     pub output_quantity: u32,
     pub cooking_duration: f32,
+    prefab_name: String,
+}
+
+impl RecipeMeta {
+    pub fn prefab_name(&self) -> PrefabName {
+        PrefabName::FileName(&self.prefab_name)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
