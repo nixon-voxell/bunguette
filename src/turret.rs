@@ -1,11 +1,10 @@
+use crate::action::{PlayerAction, TargetAction};
 use crate::camera_controller::CameraTarget;
+use crate::character_controller::CharacterController;
+use crate::inventory::item::{ItemRegistry, ItemType};
+use crate::inventory::{Inventory, Item};
 use crate::player::PlayerType;
-use crate::{
-    action::{PlayerAction, TargetAction},
-    character_controller::CharacterController,
-    inventory::item::{ItemRegistry, ItemType},
-    inventory::{Inventory, Item},
-};
+
 use avian3d::prelude::*;
 use bevy::{color::palettes::css::*, prelude::*};
 use leafwing_input_manager::prelude::*;
