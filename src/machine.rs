@@ -148,6 +148,15 @@ fn update_cooking_machines(
     }
 }
 
+/// Component representing a machine that can convert ingredients to towers
+#[derive(Component, Reflect, Debug, Clone)]
+#[component(immutable)]
+#[reflect(Component)]
+pub struct Machine {
+    /// The ID of the recipe to use from the registry
+    pub recipe_id: String,
+}
+
 impl Machine {
     /// Get the recipe data from the registry
     pub fn get_recipe<'a>(
@@ -156,15 +165,17 @@ impl Machine {
     ) -> Option<&'a RecipeMeta> {
         registry.get_recipe(&self.recipe_id)
     }
-}
 
-/// Component representing a machine that can convert ingredients to towers
-#[derive(Component, Reflect, Debug, Clone)]
-#[component(immutable)]
-#[reflect(Component)]
-pub struct Machine {
-    /// The ID of the recipe to use from the registry
-    pub recipe_id: String,
+    pub fn get_icon(
+        &self,
+        recipe_registry: &RecipeRegistry,
+        item_registry: &ItemRegistry,
+    ) -> Option<Handle<Image>> {
+        let recipe = self.get_recipe(recipe_registry)?;
+        let item = item_registry.get_item(&recipe.output_id)?;
+
+        Some(item.icon.clone())
+    }
 }
 
 #[derive(Component, Deref, Default, Debug)]

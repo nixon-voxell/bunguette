@@ -5,9 +5,14 @@
             max_stack_size: 10,
             item_type: ingredient,
         ),
+        "gun_tower": (
+            icon_path: "icons/gun_tower.png",
+            max_stack_size: 10,
+            item_type: tower,
+        ),
         "cannon_tower": (
             icon_path: "icons/cannon_tower.png",
-            max_stack_size: 1,
+            max_stack_size: 10,
             item_type: tower,
         ),
     }

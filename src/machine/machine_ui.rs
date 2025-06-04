@@ -1,12 +1,13 @@
 use bevy::color::palettes::tailwind::*;
-use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
 use crate::interaction::MarkerPlayers;
+use crate::inventory::item::ItemRegistry;
 use crate::player::PlayerType;
+use crate::ui::widgets::progress_bar::ProgressBar;
 use crate::ui::world_space::WorldUi;
 
 use super::recipe::{RecipeMeta, RecipeRegistry};
@@ -31,7 +32,7 @@ fn setup_machine_ui(
     mut commands: Commands,
     q_cameras: QueryCameras<Entity>,
 ) -> Result {
-    let machine_entity = trigger.target();
+    let entity = trigger.target();
 
     let camera_a = q_cameras.get(CameraType::A)?;
     let camera_b = q_cameras.get(CameraType::B)?;
@@ -63,11 +64,9 @@ fn setup_machine_ui(
     }
 
     // Create UI for both cameras
-    commands
-        .spawn((ui_bundle(machine_entity), UiTargetCamera(camera_a)));
+    commands.spawn((ui_bundle(entity), UiTargetCamera(camera_a)));
 
-    commands
-        .spawn((ui_bundle(machine_entity), UiTargetCamera(camera_b)));
+    commands.spawn((ui_bundle(entity), UiTargetCamera(camera_b)));
 
     Ok(())
 }
@@ -123,7 +122,8 @@ fn machine_ui_content(
     q_machines: Query<(&Machine, Option<&OperationTimer>, Entity)>,
     q_machine_uis: Query<(Entity, &MachineUiOf)>,
     recipe_registry: RecipeRegistry,
-) {
+    item_registry: ItemRegistry,
+) -> Result {
     // Update each content marker with its specific machine's data
     for (root_id, ui_of) in q_machine_uis.iter() {
         // Find the machine that owns this content marker
@@ -133,9 +133,6 @@ fn machine_ui_content(
             continue;
         };
 
-        // Update this specific machine's content
-        let commands: &mut Commands = &mut commands;
-        let recipe_registry: &RecipeRegistry = &recipe_registry;
         // Clear existing children
         commands.entity(root_id).despawn_related::<Children>();
 
@@ -145,78 +142,102 @@ fn machine_ui_content(
             continue;
         }
 
-        let Some(recipe) = machine.get_recipe(recipe_registry) else {
-            error!(
+        let recipe =
+            machine.get_recipe(&recipe_registry).ok_or(format!(
                 "Recipe: {} does not exists for {machine_entity}!",
                 machine.recipe_id
-            );
-            continue;
+            ))?;
+
+        let icon_id = commands
+            .spawn((
+                Node {
+                    width: Val::Px(80.0),
+                    height: Val::Px(80.0),
+                    ..default()
+                },
+                ImageNode::new(
+                    machine
+                        .get_icon(&recipe_registry, &item_registry)
+                        .ok_or("Should have output icon.")?,
+                ),
+            ))
+            .id();
+
+        let content_ids = match operation_timer {
+            Some(operation_timer) => operating_machine_ui(
+                commands.reborrow(),
+                &operation_timer.0,
+            ),
+            None => freed_machine_ui(
+                commands.reborrow(),
+                recipe,
+                &item_registry,
+            ),
         };
 
-        if let Some(operation_timer) = operation_timer {
-            operating_machine_ui(
-                commands,
-                root_id,
-                machine,
-                recipe,
-                &operation_timer.0,
-            );
-        } else {
-            freed_machine_ui(commands, root_id, machine, recipe);
-        };
+        commands
+            .entity(root_id)
+            .add_child(icon_id)
+            .add_children(&content_ids);
     }
+
+    Ok(())
 }
 
 fn freed_machine_ui(
-    commands: &mut Commands,
-    content_entity: Entity,
-    machine: &Machine,
+    mut commands: Commands,
     recipe: &RecipeMeta,
-) {
-    // Recipe name.
-    let mut children = vec![
-        commands
-            .spawn((
-                Text::new(
-                    machine
-                        .recipe_id
-                        .replace('_', " ")
-                        .to_uppercase(),
-                ),
-                TextLayout::new_with_justify(JustifyText::Center),
-                TextFont {
-                    font_size: 16.0,
-                    ..default()
-                },
-                TextColor(CYAN_300.into()),
-                Node {
-                    margin: UiRect::bottom(Val::Px(12.0)),
-                    ..default()
-                },
-            ))
-            .id(),
-    ];
+    item_registry: &ItemRegistry,
+) -> Vec<Entity> {
+    let mut children = vec![];
 
     // Ingredients.
     for ingredient in recipe.ingredients.iter() {
+        let Some(icon) = item_registry
+            .get_item(&ingredient.item_id)
+            .map(|i| i.icon.clone())
+        else {
+            warn!("Can't find {}", ingredient.item_id);
+            continue;
+        };
+
         children.push(
             commands
                 .spawn((
-                    Text::new(format!(
-                        "{} x{}",
-                        ingredient.item_id.replace('_', " "),
-                        ingredient.quantity
-                    )),
-                    TextLayout::new_with_justify(JustifyText::Center),
-                    TextFont {
-                        font_size: 13.0,
-                        ..default()
-                    },
-                    TextColor(SLATE_200.into()),
                     Node {
-                        margin: UiRect::bottom(Val::Px(4.0)),
+                        flex_direction: FlexDirection::Row,
+                        padding: UiRect::all(Val::Px(2.0)),
                         ..default()
                     },
+                    Children::spawn((
+                        Spawn((
+                            Node {
+                                width: Val::Px(40.0),
+                                height: Val::Px(40.0),
+                                padding: UiRect::right(Val::Px(2.0)),
+                                ..default()
+                            },
+                            ImageNode::new(icon),
+                        )),
+                        Spawn((
+                            Text::new(format!(
+                                "x{}",
+                                ingredient.quantity
+                            )),
+                            TextLayout::new_with_justify(
+                                JustifyText::Center,
+                            ),
+                            TextFont {
+                                font_size: 13.0,
+                                ..default()
+                            },
+                            TextColor(SLATE_200.into()),
+                            Node {
+                                margin: UiRect::bottom(Val::Px(4.0)),
+                                ..default()
+                            },
+                        )),
+                    )),
                 ))
                 .id(),
         );
@@ -233,26 +254,6 @@ fn freed_machine_ui(
                     ..default()
                 },
                 BackgroundColor(SLATE_600.into()),
-            ))
-            .id(),
-        // Output.
-        commands
-            .spawn((
-                Text::new(format!(
-                    "{} x{}",
-                    recipe.output_id.replace('_', " "),
-                    recipe.output_quantity
-                )),
-                TextLayout::new_with_justify(JustifyText::Center),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextColor(BLUE_300.into()),
-                Node {
-                    margin: UiRect::bottom(Val::Px(8.0)),
-                    ..default()
-                },
             ))
             .id(),
         // Cooking time.
@@ -272,42 +273,18 @@ fn freed_machine_ui(
             .id(),
     ]);
 
-    commands.entity(content_entity).add_children(&children);
+    children
 }
 
 fn operating_machine_ui(
-    commands: &mut Commands,
-    content_entity: Entity,
-    machine: &Machine,
-    recipe: &RecipeMeta,
+    mut commands: Commands,
     timer: &Timer,
-) {
+) -> Vec<Entity> {
     let remaining_time = timer.remaining_secs();
     let progress =
         timer.elapsed_secs() / timer.duration().as_secs_f32();
 
-    let children = [
-        // Recipe name.
-        commands
-            .spawn((
-                Text::new(
-                    machine
-                        .recipe_id
-                        .replace('_', " ")
-                        .to_uppercase(),
-                ),
-                TextLayout::new_with_justify(JustifyText::Center),
-                TextFont {
-                    font_size: 16.0,
-                    ..default()
-                },
-                TextColor(ORANGE_300.into()),
-                Node {
-                    margin: UiRect::bottom(Val::Px(8.0)),
-                    ..default()
-                },
-            ))
-            .id(),
+    vec![
         // Status.
         commands
             .spawn((
@@ -344,51 +321,26 @@ fn operating_machine_ui(
             ))
             .id(),
         // Progress bar container.
-        commands
-            .spawn((
-                Node {
-                    width: Val::Px(140.0),
-                    height: Val::Px(8.0),
-                    margin: UiRect::bottom(Val::Px(12.0)),
-                    ..default()
-                },
-                BackgroundColor(GRAY_700.into()),
-                BorderRadius::all(Val::Px(4.0)),
-                Children::spawn(SpawnWith(
-                    move |progress_parent: &mut ChildSpawner| {
-                        // Progress bar fill
-                        progress_parent.spawn((
-                            Node {
-                                width: Val::Percent(progress * 100.0),
-                                height: Val::Percent(100.0),
-                                ..default()
-                            },
-                            BackgroundColor(ORANGE_400.into()),
-                            BorderRadius::all(Val::Px(4.0)),
-                        ));
+        {
+            const RADIUS: BorderRadius =
+                BorderRadius::all(Val::Px(4.0));
+            commands
+                .spawn((
+                    Node {
+                        width: Val::Px(140.0),
+                        height: Val::Px(8.0),
+                        margin: UiRect::bottom(Val::Px(12.0)),
+                        overflow: Overflow::clip(),
+                        ..default()
                     },
-                )),
-            ))
-            .id(),
-        // Output preview.
-        commands
-            .spawn((
-                Text::new(format!(
-                    "Producing: {} x{}",
-                    recipe.output_id.replace('_', " "),
-                    recipe.output_quantity
-                )),
-                TextLayout::new_with_justify(JustifyText::Center),
-                TextFont {
-                    font_size: 12.0,
-                    ..default()
-                },
-                TextColor(BLUE_200.into()),
-            ))
-            .id(),
-    ];
-
-    commands.entity(content_entity).add_children(&children);
+                    BackgroundColor(GRAY_700.into()),
+                    RADIUS,
+                    ProgressBar::new(ORANGE_400, RADIUS)
+                        .with_init_progress(progress),
+                ))
+                .id()
+        },
+    ]
 }
 
 #[derive(Component, Deref, Debug)]
