@@ -30,17 +30,11 @@ fn setup_machine_ui(
     trigger: Trigger<OnAdd, Machine>,
     mut commands: Commands,
     q_cameras: QueryCameras<Entity>,
-) {
+) -> Result {
     let machine_entity = trigger.target();
 
-    let Ok(camera_a) = q_cameras.get(CameraType::A) else {
-        warn!("Camera A not found when setting up machine UI");
-        return;
-    };
-    let Ok(camera_b) = q_cameras.get(CameraType::B) else {
-        warn!("Camera B not found when setting up machine UI");
-        return;
-    };
+    let camera_a = q_cameras.get(CameraType::A)?;
+    let camera_b = q_cameras.get(CameraType::B)?;
 
     fn ui_bundle(machine_entity: Entity) -> impl Bundle {
         (
@@ -74,6 +68,8 @@ fn setup_machine_ui(
 
     commands
         .spawn((ui_bundle(machine_entity), UiTargetCamera(camera_b)));
+
+    Ok(())
 }
 
 /// Set visibility of machine ui based on whether it is marked
@@ -86,7 +82,7 @@ fn machine_ui_visibility(
     q_target_cameras: Query<&UiTargetCamera>,
     q_camera_types: Query<&CameraType>,
     q_player_types: Query<&PlayerType>,
-    mut q_nodes: Query<&mut Node>,
+    mut q_viz: Query<&mut Visibility>,
 ) -> Result {
     for (players, uis) in q_machines.iter() {
         let mut marked_by_players = vec![];
@@ -109,11 +105,11 @@ fn machine_ui_visibility(
             };
 
             // Set node visibility based on who marked the machine.
-            let mut node = q_nodes.get_mut(ui)?;
+            let mut viz = q_viz.get_mut(ui)?;
             if marked_by_players.contains(&player_type) {
-                node.display = Display::DEFAULT;
+                *viz = Visibility::Inherited;
             } else {
-                node.display = Display::None;
+                *viz = Visibility::Hidden;
             }
         }
     }
