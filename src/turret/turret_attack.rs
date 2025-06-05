@@ -43,7 +43,7 @@ fn turret_targeting(
     q_turrets: Query<(
         &GlobalTransform,
         &Turret,
-        &CurrentTargets,
+        Option<&CurrentTargets>,
         Entity,
     )>,
     q_enemies: Query<
@@ -85,7 +85,9 @@ fn turret_targeting(
             }
         }
 
-        let current_target = current_targets.first().copied();
+        // Handle current targets
+        let current_target = current_targets
+            .and_then(|targets| targets.first().copied());
 
         // Update target relationship
         match (current_target, best_target) {
@@ -119,7 +121,7 @@ fn turret_shooting(
     q_turrets: Query<(
         &GlobalTransform,
         &Turret,
-        &CurrentTargets,
+        Option<&CurrentTargets>,
         Entity,
     )>,
     mut q_cooldowns: Query<&mut TurretCooldown>,
@@ -142,7 +144,8 @@ fn turret_shooting(
         }
 
         // Check if there are any targets
-        let Some(target_entity) = current_targets.first().copied()
+        let Some(target_entity) = current_targets
+            .and_then(|targets| targets.first().copied())
         else {
             continue;
         };
