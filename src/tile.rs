@@ -217,7 +217,7 @@ impl Default for TileMap {
 
 #[derive(Clone, Copy)]
 pub struct TileMeta {
-    // #[allow(dead_code)]
+    #[allow(dead_code)]
     target: Entity,
     occupied: bool,
 }
