@@ -6,11 +6,17 @@ pub(super) struct TilePlugin;
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TileMap>()
-            .add_observer(setup_tile)
+            .add_systems(
+                PostUpdate,
+                setup_tile.after(TransformSystem::TransformPropagate),
+            )
             .add_observer(on_placed)
             .add_observer(on_freed);
 
         app.register_type::<Tile>();
+
+        #[cfg(feature = "dev")]
+        app.register_type::<TileMap>();
     }
 }
 
@@ -20,24 +26,27 @@ const HALF_MAP_SIZE: usize = 20;
 
 /// Setup tile inside the [`TileMap`].
 fn setup_tile(
-    trigger: Trigger<OnAdd, Tile>,
-    q_transforms: Query<&Transform>,
+    q_tiles: Query<
+        (&GlobalTransform, Entity),
+        (Or<(Added<Tile>, Added<GlobalTransform>)>, With<Tile>),
+    >,
     mut tile_map: ResMut<TileMap>,
 ) -> Result {
-    let entity = trigger.target();
+    for (transform, entity) in q_tiles.iter() {
+        let translation = transform.translation();
+        info!("setting up tile for {entity}, {translation}",);
 
-    let transform = q_transforms.get(entity)?;
-
-    *tile_map.get_mut(transform).ok_or(format!(
-        "Unable to get tile for {entity}, {transform:?}"
-    ))? = Some(TileMeta::new(entity));
+        *tile_map.get_mut(&translation).ok_or(format!(
+            "Unable to get tile for {entity}, {translation}"
+        ))? = Some(TileMeta::new(entity));
+    }
 
     Ok(())
 }
 
 fn on_placed(
     trigger: Trigger<OnAdd, PlacedBy>,
-    q_transforms: Query<&Transform>,
+    q_transforms: Query<&GlobalTransform>,
     mut tile_map: ResMut<TileMap>,
 ) -> Result {
     let entity = trigger.target();
@@ -45,7 +54,7 @@ fn on_placed(
     let transform = q_transforms.get(entity)?;
 
     if let Some(tile) = tile_map
-        .get_mut(transform)
+        .get_mut(&transform.translation())
         .ok_or(format!(
             "Unable to get tile for {entity}, {transform:?}"
         ))?
@@ -59,7 +68,7 @@ fn on_placed(
 
 fn on_freed(
     trigger: Trigger<OnRemove, PlacedBy>,
-    q_transforms: Query<&Transform>,
+    q_transforms: Query<&GlobalTransform>,
     mut tile_map: ResMut<TileMap>,
 ) -> Result {
     let entity = trigger.target();
@@ -67,7 +76,7 @@ fn on_freed(
     let transform = q_transforms.get(entity)?;
 
     if let Some(tile) = tile_map
-        .get_mut(transform)
+        .get_mut(&transform.translation())
         .ok_or(format!(
             "Unable to get tile for {entity}, {transform:?}"
         ))?
@@ -80,6 +89,8 @@ fn on_freed(
 }
 
 #[derive(Resource, Deref)]
+#[cfg_attr(feature = "dev", derive(Reflect))]
+#[cfg_attr(feature = "dev", reflect(Resource))]
 pub struct TileMap(Vec<Option<TileMeta>>);
 
 impl TileMap {
@@ -98,13 +109,13 @@ impl TileMap {
         true
     }
 
-    pub fn transform_to_tile_coord(
-        transform: &Transform,
+    /// Get the closest tile coordinate.
+    pub fn translation_to_tile_coord(
+        translation: &Vec3,
     ) -> Option<UVec2> {
-        // Get the closest tile coordinate.
-        let coordinate = transform.translation.xz().round().as_ivec2()
-                // Prevent going negative.
-                + HALF_MAP_SIZE as i32;
+        // Prevent going negative.
+        let coordinate = (translation.xz().round().as_ivec2() / 2)
+            + HALF_MAP_SIZE as i32;
 
         if TileMap::within_map_range(&coordinate) == false {
             return None;
@@ -118,10 +129,10 @@ impl TileMap {
         (coordinate.x + coordinate.y * map_size) as usize
     }
 
-    pub fn transform_to_tile_idx(
-        transform: &Transform,
+    pub fn translation_to_tile_idx(
+        translation: &Vec3,
     ) -> Option<usize> {
-        TileMap::transform_to_tile_coord(transform)
+        TileMap::translation_to_tile_coord(translation)
             .map(|coord| TileMap::tile_coord_to_tile_idx(&coord))
     }
 
@@ -131,9 +142,9 @@ impl TileMap {
 
     fn get_mut(
         &mut self,
-        transform: &Transform,
+        translation: &Vec3,
     ) -> Option<&mut Option<TileMeta>> {
-        TileMap::transform_to_tile_idx(transform)
+        TileMap::translation_to_tile_idx(translation)
             .and_then(|index| self.0.get_mut(index))
     }
 
@@ -145,43 +156,44 @@ impl TileMap {
     /// None will be returned if there is no valid path.
     pub fn pathfind_to(
         &self,
-        start_transform: &Transform,
-        end_transform: &Transform,
+        start_translation: &Vec3,
+        end_translation: &Vec3,
         to_tower: bool,
     ) -> Option<Vec<IVec2>> {
         let start =
-            TileMap::transform_to_tile_coord(start_transform)?
+            TileMap::translation_to_tile_coord(start_translation)?
                 .as_ivec2();
-        let end = TileMap::transform_to_tile_coord(end_transform)?
-            .as_ivec2();
+        let end =
+            TileMap::translation_to_tile_coord(end_translation)?
+                .as_ivec2();
+
+        println!("{start}, {end}");
 
         Some(
             astar(
                 &start,
                 |&IVec2 { x, y }| {
                     [
-                        // Bottom row.
-                        IVec2::new(x - 1, y - 1),
+                        // Bottom.
                         IVec2::new(x, y - 1),
-                        IVec2::new(x + 1, y - 1),
-                        // Center row.
+                        // Left/Right.
                         IVec2::new(x - 1, y),
                         IVec2::new(x + 1, y),
-                        // Top row.
-                        IVec2::new(x - 1, y + 1),
+                        // Top.
                         IVec2::new(x, y + 1),
-                        IVec2::new(x + 1, y + 1),
                     ]
                     .into_iter()
                     .filter(|p| {
                         // Must be a valid coordinate
                         if TileMap::within_map_range(p) {
-                            let tile_meta = self
-                                [TileMap::tile_coord_to_tile_idx(
+                            let index =
+                                TileMap::tile_coord_to_tile_idx(
                                     &p.as_uvec2(),
-                                )];
+                                );
+                            let tile_meta = self[index];
 
                             let Some(tile_meta) = tile_meta else {
+                                // println!("no tile meta");
                                 return false;
                             };
 
@@ -197,7 +209,11 @@ impl TileMap {
                     })
                     .map(|p| (p, 1))
                 },
-                |potential| potential.distance_squared(end),
+                |potential| {
+                    // println!("{potential}");
+                    potential.distance_squared(end)
+                },
+                // TODO: change goal when to_tower is true.
                 |coord| *coord == end,
             )?
             .0
@@ -210,12 +226,12 @@ impl TileMap {
 
 impl Default for TileMap {
     fn default() -> Self {
-        let map_size = HALF_MAP_SIZE * 2;
-        Self(vec![None; map_size * map_size])
+        const MAP_SIZE: usize = HALF_MAP_SIZE * 2;
+        Self(vec![None; MAP_SIZE * MAP_SIZE])
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Reflect, Clone, Copy)]
 pub struct TileMeta {
     #[allow(dead_code)]
     target: Entity,
@@ -266,16 +282,13 @@ mod test {
 
     #[test]
     fn test_coordinate_spaces() {
-        let transform = Transform::from_xyz(1.0, 0.0, 3.0);
+        let translation = Vec3::new(1.0, 0.0, 3.0);
 
-        let coord = TileMap::transform_to_tile_coord(&transform)
+        let coord = TileMap::translation_to_tile_coord(&translation)
             .expect("Should be in range.");
         let world_space =
             TileMap::tile_coord_to_world_space(&coord.as_ivec2());
 
-        assert_eq!(
-            world_space,
-            transform.translation.xz().as_ivec2()
-        );
+        assert_eq!(world_space, translation.xz().as_ivec2());
     }
 }
