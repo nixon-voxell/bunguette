@@ -55,8 +55,7 @@ fn detect_interactables(
             &Collider::sphere(player.range),
             player_translation,
             Quat::IDENTITY,
-            &SpatialQueryFilter::from_mask(GameLayer::Interactable)
-                .with_excluded_entities([entity]),
+            &SpatialQueryFilter::from_mask(GameLayer::Interactable),
         );
 
         // No items around.
