@@ -32,7 +32,7 @@ impl Plugin for AppPlugin {
             inventory::InventoryPlugin,
             player::PlayerPlugin,
             machine::MachinePlugin,
-            turret::TurretPlacementPlugin,
+            turret::TurretPlugin,
         ));
 
         #[cfg(feature = "dev")]

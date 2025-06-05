@@ -11,9 +11,9 @@ use crate::inventory::Inventory;
 use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::player::{PlayerType, QueryPlayers};
 
-pub struct TurretPlacementPlugin;
+pub struct TurretPlugin;
 
-impl Plugin for TurretPlacementPlugin {
+impl Plugin for TurretPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_preview_cube).add_systems(
             Update,
