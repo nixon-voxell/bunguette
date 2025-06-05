@@ -11,19 +11,23 @@ use crate::inventory::Inventory;
 use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::player::{PlayerType, QueryPlayers};
 
+mod turret_attack;
+
 pub struct TurretPlugin;
 
 impl Plugin for TurretPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_preview_cube).add_systems(
-            Update,
-            (
-                turret_placement_and_preview
-                    .run_if(in_state(AssetState::Loaded)),
-                (enter_placement_mode, exit_placement_mode),
-            )
-                .chain(),
-        );
+        app.add_plugins(turret_attack::TurretAttackPlugin)
+            .add_systems(Startup, setup_preview_cube)
+            .add_systems(
+                Update,
+                (
+                    turret_placement_and_preview
+                        .run_if(in_state(AssetState::Loaded)),
+                    (enter_placement_mode, exit_placement_mode),
+                )
+                    .chain(),
+            );
         app.register_type::<PlacementTile>();
     }
 }
