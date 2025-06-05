@@ -120,15 +120,20 @@ fn turret_targeting(
 /// Shoot at current target
 fn turret_shooting(
     mut commands: Commands,
-    q_turrets: Query<(&GlobalTransform, &Turret, Entity)>,
+    q_turrets: Query<(
+        &GlobalTransform,
+        &Turret,
+        &CurrentTargets,
+        Entity,
+    )>,
     mut q_cooldowns: Query<&mut TurretCooldown>,
-    q_current_targets: Query<(&TargetedBy, Entity)>,
     q_enemies: Query<&GlobalTransform, With<Enemy>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
 ) {
-    for (turret_transform, turret, turret_entity) in q_turrets.iter()
+    for (turret_transform, turret, current_targets, turret_entity) in
+        q_turrets.iter()
     {
         let Ok(mut cooldown) = q_cooldowns.get_mut(turret_entity)
         else {
@@ -140,16 +145,8 @@ fn turret_shooting(
             continue;
         }
 
-        // Find current target
-        let target_entity = q_current_targets.iter().find_map(
-            |(targeted_by, enemy_entity)| {
-                if targeted_by.0 == turret_entity {
-                    Some(enemy_entity)
-                } else {
-                    None
-                }
-            },
-        );
+        // Get current target directly
+        let target_entity = current_targets.first().copied();
 
         // Shoot if we have a target
         if let Some(target_entity) = target_entity {
