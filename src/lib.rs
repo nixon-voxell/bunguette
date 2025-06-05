@@ -4,6 +4,7 @@ mod action;
 mod asset_pipeline;
 mod camera_controller;
 mod character_controller;
+mod enemy;
 mod interaction;
 mod inventory;
 mod machine;
@@ -35,6 +36,7 @@ impl Plugin for AppPlugin {
             machine::MachinePlugin,
             turret::TurretPlugin,
             tile::TilePlugin,
+            enemy::EnemyPlugin,
         ));
 
         #[cfg(feature = "dev")]

@@ -147,6 +147,7 @@ impl TileMap {
         &self,
         start_transform: &Transform,
         end_transform: &Transform,
+        to_tower: bool,
     ) -> Option<Vec<IVec2>> {
         let start =
             TileMap::transform_to_tile_coord(start_transform)?
@@ -184,8 +185,13 @@ impl TileMap {
                                 return false;
                             };
 
-                            // Must not be occupied.
-                            return tile_meta.occupied == false;
+                            if to_tower {
+                                // Allow pathfinding towards tower.
+                                return true;
+                            } else {
+                                // Must not be occupied.
+                                return tile_meta.occupied == false;
+                            }
                         }
                         false
                     })
@@ -211,6 +217,7 @@ impl Default for TileMap {
 
 #[derive(Clone, Copy)]
 pub struct TileMeta {
+    // #[allow(dead_code)]
     target: Entity,
     occupied: bool,
 }
