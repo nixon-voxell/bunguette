@@ -10,6 +10,7 @@ impl Plugin for TurretAttackPlugin {
             Update,
             (
                 turret_targeting,
+                turret_rotation,
                 turret_shooting,
                 handle_projectile_collisions,
                 projectile_movement,
@@ -115,35 +116,21 @@ fn turret_targeting(
     }
 }
 
-/// Shoot at current target
-fn turret_shooting(
-    mut commands: Commands,
-    q_turrets: Query<(
-        &GlobalTransform,
-        &Turret,
-        Option<&CurrentTargets>,
-        Entity,
-    )>,
-    mut q_cooldowns: Query<&mut TurretCooldown>,
+/// Rotate turrets to face their targets
+fn turret_rotation(
+    mut q_turrets: Query<
+        (&mut Transform, &GlobalTransform, Option<&CurrentTargets>),
+        With<Turret>,
+    >,
     q_enemies: Query<&GlobalTransform, With<Enemy>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
 ) {
-    for (turret_transform, turret, current_targets, turret_entity) in
-        q_turrets.iter()
+    const ROTATION_SPEED: f32 = 8.0;
+    const SNAP_THRESHOLD: f32 = 0.15;
+
+    for (mut transform, global_transform, current_targets) in
+        q_turrets.iter_mut()
     {
-        let Ok(mut cooldown) = q_cooldowns.get_mut(turret_entity)
-        else {
-            continue;
-        };
-
-        cooldown.remaining -= time.delta_secs();
-        if cooldown.remaining > 0.0 {
-            continue;
-        }
-
-        // Check if there are any targets
         let Some(target_entity) = current_targets
             .and_then(|targets| targets.first().copied())
         else {
@@ -155,8 +142,94 @@ fn turret_shooting(
             continue;
         };
 
-        let turret_position = turret_transform.translation();
+        let turret_position = global_transform.translation();
         let target_position = target_transform.translation();
+
+        let Ok(direction) =
+            Dir3::new(target_position - turret_position)
+        else {
+            continue;
+        };
+
+        let target_rotation =
+            Quat::from_rotation_y(direction.x.atan2(direction.z));
+
+        let angle_diff =
+            transform.rotation.angle_between(target_rotation);
+
+        if angle_diff < SNAP_THRESHOLD {
+            transform.rotation = target_rotation;
+        } else {
+            transform.rotation.smooth_nudge(
+                &target_rotation,
+                ROTATION_SPEED,
+                time.delta_secs(),
+            );
+        }
+    }
+}
+
+/// Shoot at current target
+fn turret_shooting(
+    mut commands: Commands,
+    q_turrets: Query<(
+        &Transform,
+        &GlobalTransform,
+        &Turret,
+        Option<&CurrentTargets>,
+        Entity,
+    )>,
+    mut q_cooldowns: Query<&mut TurretCooldown>,
+    q_enemies: Query<&GlobalTransform, With<Enemy>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    time: Res<Time>,
+) {
+    // Minimum facing accuracy to fire
+    const MIN_FACING_ACCURACY: f32 = 0.9;
+
+    for (
+        transform,
+        global_transform,
+        turret,
+        current_targets,
+        turret_entity,
+    ) in q_turrets.iter()
+    {
+        let Ok(mut cooldown) = q_cooldowns.get_mut(turret_entity)
+        else {
+            continue;
+        };
+
+        cooldown.remaining -= time.delta_secs();
+        if cooldown.remaining > 0.0 {
+            continue;
+        }
+
+        let Some(target_entity) = current_targets
+            .and_then(|targets| targets.first().copied())
+        else {
+            continue;
+        };
+
+        let Ok(target_transform) = q_enemies.get(target_entity)
+        else {
+            continue;
+        };
+
+        let turret_position = global_transform.translation();
+        let target_position = target_transform.translation();
+
+        // Check if turret is facing the target
+        let turret_forward = -transform.forward();
+        let target_direction =
+            (target_position - turret_position).normalize();
+        let facing_dot = turret_forward.dot(target_direction);
+
+        if facing_dot < MIN_FACING_ACCURACY {
+            continue;
+        }
+
         let projectile_start = turret_position + Vec3::Y * 0.5;
         let direction =
             (target_position - projectile_start).normalize();
