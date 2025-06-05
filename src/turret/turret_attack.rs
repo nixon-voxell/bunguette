@@ -40,15 +40,20 @@ fn setup_enemy_collision(
 /// Find and target the best enemy
 fn turret_targeting(
     mut commands: Commands,
-    q_turrets: Query<(&GlobalTransform, &Turret, Entity)>,
+    q_turrets: Query<(
+        &GlobalTransform,
+        &Turret,
+        &CurrentTargets,
+        Entity,
+    )>,
     q_enemies: Query<
         (&GlobalTransform, &PathPriority, Entity),
         With<Enemy>,
     >,
-    q_current_targets: Query<(&TargetedBy, Entity)>,
     spatial_query: SpatialQuery,
 ) {
-    for (turret_transform, turret, turret_entity) in q_turrets.iter()
+    for (turret_transform, turret, current_targets, turret_entity) in
+        q_turrets.iter()
     {
         let turret_position = turret_transform.translation();
 
@@ -80,16 +85,8 @@ fn turret_targeting(
             }
         }
 
-        // Find current target
-        let current_target = q_current_targets.iter().find_map(
-            |(targeted_by, enemy_entity)| {
-                if targeted_by.0 == turret_entity {
-                    Some(enemy_entity)
-                } else {
-                    None
-                }
-            },
-        );
+        // Get current target directly - O(1) lookup!
+        let current_target = current_targets.first().copied();
 
         // Update target relationship
         match (current_target, best_target) {
@@ -259,7 +256,7 @@ fn projectile_movement(
 /// Turret component with stats only
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
-#[require(TurretCooldown)]
+#[require(TurretCooldown, CurrentTargets)]
 pub struct Turret {
     pub range: f32,
     pub damage: f32,
