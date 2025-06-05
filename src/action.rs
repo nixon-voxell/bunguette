@@ -72,8 +72,8 @@ pub enum PlayerAction {
     // Inventory actions.
     CycleNext,
     CyclePrev,
-    EnterPlacementMode,
-    PlaceTurret,
+    Placement,
+    Cancel,
 }
 
 impl PlayerAction {
@@ -91,14 +91,11 @@ impl PlayerAction {
             )
             .with(Self::Jump, GamepadButton::South)
             .with(Self::Interact, GamepadButton::West)
-            .with(
-                Self::EnterPlacementMode,
-                GamepadButton::RightTrigger,
-            )
-            .with(Self::PlaceTurret, GamepadButton::East)
             .with(Self::Attack, GamepadButton::RightTrigger2)
-            .with(Self::CycleNext, GamepadButton::DPadRight)
-            .with(Self::CyclePrev, GamepadButton::DPadLeft)
+            .with(Self::CycleNext, GamepadButton::LeftTrigger)
+            .with(Self::CyclePrev, GamepadButton::RightTrigger)
+            .with(Self::Placement, GamepadButton::North)
+            .with(Self::Cancel, GamepadButton::East)
     }
 
     /// Create a new [`InputMap`] for keyboard and mouse.
@@ -110,10 +107,10 @@ impl PlayerAction {
             .with(Self::Jump, KeyCode::Space)
             .with(Self::Interact, KeyCode::KeyE)
             .with(Self::Attack, MouseButton::Left)
-            .with(Self::EnterPlacementMode, MouseButton::Right)
-            .with(Self::PlaceTurret, KeyCode::KeyC)
-            .with(Self::CycleNext, KeyCode::ArrowRight)
-            .with(Self::CyclePrev, KeyCode::ArrowLeft)
+            .with(Self::CycleNext, MouseScrollDirection::DOWN)
+            .with(Self::CyclePrev, MouseScrollDirection::UP)
+            .with(Self::Placement, MouseButton::Right)
+            .with(Self::Cancel, KeyCode::KeyQ)
     }
 }
 

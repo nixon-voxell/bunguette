@@ -11,12 +11,12 @@ use bevy::ecs::query::{
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::render::camera::{CameraOutputMode, Viewport};
-use bevy::render::view::RenderLayers;
+use bevy::render::view::{Layer, RenderLayers};
 use bevy::window::WindowResized;
 
 use crate::util::PropagateComponentAppExt;
 
-use super::UI_RENDER_LAYER;
+use super::{A_RENDER_LAYER, B_RENDER_LAYER, UI_RENDER_LAYER};
 
 pub(super) struct SplitScreenPlugin;
 
@@ -80,13 +80,23 @@ fn setup_camera_and_environment(
         RenderLayers::layer(31),
     ));
 
-    commands
-        .spawn((game_camera_bundle(&asset_server, 0), CameraType::A));
+    commands.spawn((
+        game_camera_bundle(&asset_server, 0),
+        CameraType::A,
+        A_RENDER_LAYER.with(Layer::default()),
+    ));
 
-    commands
-        .spawn((game_camera_bundle(&asset_server, 1), CameraType::B));
+    commands.spawn((
+        game_camera_bundle(&asset_server, 1),
+        CameraType::B,
+        B_RENDER_LAYER.with(Layer::default()),
+    ));
 
-    commands.spawn((ui_camera_bundle(2), CameraType::Full));
+    commands.spawn((
+        ui_camera_bundle(2),
+        CameraType::Full,
+        UI_RENDER_LAYER,
+    ));
 }
 
 fn game_camera_bundle(
@@ -150,7 +160,6 @@ fn ui_camera_bundle(order: isize) -> impl Bundle {
         Bloom::NATURAL,
         DebandDither::Enabled,
         IsDefaultUiCamera,
-        UI_RENDER_LAYER,
     )
 }
 
