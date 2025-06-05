@@ -10,6 +10,7 @@ use crate::character_controller::CharacterController;
 use crate::inventory::Inventory;
 use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::player::{PlayerType, QueryPlayers};
+use crate::tile::{PlacedBy, PlacedOn, Tile};
 
 pub struct TurretPlugin;
 
@@ -24,7 +25,6 @@ impl Plugin for TurretPlugin {
             )
                 .chain(),
         );
-        app.register_type::<PlacementTile>();
     }
 }
 
@@ -120,10 +120,7 @@ fn turret_placement_and_preview(
         ),
         (With<CharacterController>, With<InPlacementMode>),
     >,
-    q_tiles: Query<
-        &GlobalTransform,
-        (With<PlacementTile>, Without<PlacedBy>),
-    >,
+    q_tiles: Query<&GlobalTransform, (With<Tile>, Without<PlacedBy>)>,
     mut q_previews: QueryPlayers<
         (&mut Transform, &mut Visibility),
         With<Preview>,
@@ -242,11 +239,6 @@ fn turret_placement_and_preview(
     Ok(())
 }
 
-/// Tag component for tiles that can be placed on.
-#[derive(Component, Reflect, Clone, Debug)]
-#[reflect(Component)]
-pub struct PlacementTile;
-
 /// Tag component for players who are in placement mode.
 #[derive(Component)]
 pub struct InPlacementMode;
@@ -254,13 +246,3 @@ pub struct InPlacementMode;
 /// Tag component for preview mesh.
 #[derive(Component, Clone, Copy)]
 pub struct Preview;
-
-/// Attached to a [`PlacementTile`] when it's being placed on.
-#[derive(Component, Deref, Default, Debug)]
-#[relationship_target(relationship = PlacedOn)]
-pub struct PlacedBy(Vec<Entity>);
-
-/// Attached to the item that is being placed on a [`PlacementTile`].
-#[derive(Component, Deref, Debug)]
-#[relationship(relationship_target = PlacedBy)]
-pub struct PlacedOn(Entity);

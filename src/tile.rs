@@ -5,7 +5,12 @@ pub(super) struct TilePlugin;
 
 impl Plugin for TilePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TileMap>().add_observer(setup_tile);
+        app.init_resource::<TileMap>()
+            .add_observer(setup_tile)
+            .add_observer(on_placed)
+            .add_observer(on_freed);
+
+        app.register_type::<Tile>();
     }
 }
 
@@ -26,6 +31,50 @@ fn setup_tile(
     *tile_map.get_mut(transform).ok_or(format!(
         "Unable to get tile for {entity}, {transform:?}"
     ))? = Some(TileMeta::new(entity));
+
+    Ok(())
+}
+
+fn on_placed(
+    trigger: Trigger<OnAdd, PlacedBy>,
+    q_transforms: Query<&Transform>,
+    mut tile_map: ResMut<TileMap>,
+) -> Result {
+    let entity = trigger.target();
+
+    let transform = q_transforms.get(entity)?;
+
+    if let Some(tile) = tile_map
+        .get_mut(transform)
+        .ok_or(format!(
+            "Unable to get tile for {entity}, {transform:?}"
+        ))?
+        .as_mut()
+    {
+        tile.occupied = true;
+    }
+
+    Ok(())
+}
+
+fn on_freed(
+    trigger: Trigger<OnRemove, PlacedBy>,
+    q_transforms: Query<&Transform>,
+    mut tile_map: ResMut<TileMap>,
+) -> Result {
+    let entity = trigger.target();
+
+    let transform = q_transforms.get(entity)?;
+
+    if let Some(tile) = tile_map
+        .get_mut(transform)
+        .ok_or(format!(
+            "Unable to get tile for {entity}, {transform:?}"
+        ))?
+        .as_mut()
+    {
+        tile.occupied = false;
+    }
 
     Ok(())
 }
@@ -164,3 +213,13 @@ impl TileMeta {
 #[derive(Component, Reflect, Clone, Debug)]
 #[reflect(Component)]
 pub struct Tile;
+
+/// Attached to a [`PlacementTile`] when it's being placed on.
+#[derive(Component, Deref, Default, Debug)]
+#[relationship_target(relationship = PlacedOn)]
+pub struct PlacedBy(Vec<Entity>);
+
+/// Attached to the item that is being placed on a [`PlacementTile`].
+#[derive(Component, Deref, Debug)]
+#[relationship(relationship_target = PlacedBy)]
+pub struct PlacedOn(pub Entity);
