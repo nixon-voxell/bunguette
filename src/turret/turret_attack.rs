@@ -85,7 +85,6 @@ fn turret_targeting(
             }
         }
 
-        // Get current target directly - O(1) lookup!
         let current_target = current_targets.first().copied();
 
         // Update target relationship
@@ -142,47 +141,47 @@ fn turret_shooting(
             continue;
         }
 
-        // Get current target directly
-        let target_entity = current_targets.first().copied();
+        // Check if there are any targets
+        let Some(target_entity) = current_targets.first().copied()
+        else {
+            continue;
+        };
 
-        // Shoot if we have a target
-        if let Some(target_entity) = target_entity {
-            if let Ok(target_transform) = q_enemies.get(target_entity)
-            {
-                let turret_position = turret_transform.translation();
-                let target_position = target_transform.translation();
-                let projectile_start =
-                    turret_position + Vec3::Y * 0.5;
-                // Aim from spawn point to target
-                let direction =
-                    (target_position - projectile_start).normalize();
+        let Ok(target_transform) = q_enemies.get(target_entity)
+        else {
+            continue;
+        };
 
-                commands.spawn((
-                    Mesh3d(meshes.add(Sphere::new(0.1))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.2, 0.8, 1.0),
-                        emissive: LinearRgba::rgb(0.5, 2.0, 3.0),
-                        ..default()
-                    })),
-                    Transform::from_translation(projectile_start),
-                    RigidBody::Kinematic,
-                    Collider::sphere(0.1),
-                    CollisionLayers::new(
-                        GameLayer::Projectile,
-                        GameLayer::Enemy,
-                    ),
-                    CollisionEventsEnabled,
-                    Projectile {
-                        velocity: direction * turret.projectile_speed,
-                        damage: turret.damage,
-                        lifetime: 3.0,
-                    },
-                    ProjectileFiredBy(turret_entity),
-                ));
+        let turret_position = turret_transform.translation();
+        let target_position = target_transform.translation();
+        let projectile_start = turret_position + Vec3::Y * 0.5;
+        let direction =
+            (target_position - projectile_start).normalize();
 
-                cooldown.remaining = turret.attack_cooldown;
-            }
-        }
+        commands.spawn((
+            Mesh3d(meshes.add(Sphere::new(0.1))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.2, 0.8, 1.0),
+                emissive: LinearRgba::rgb(0.5, 2.0, 3.0),
+                ..default()
+            })),
+            Transform::from_translation(projectile_start),
+            RigidBody::Kinematic,
+            Collider::sphere(0.1),
+            CollisionLayers::new(
+                GameLayer::Projectile,
+                GameLayer::Enemy,
+            ),
+            CollisionEventsEnabled,
+            Projectile {
+                velocity: direction * turret.projectile_speed,
+                damage: turret.damage,
+                lifetime: 3.0,
+            },
+            ProjectileFiredBy(turret_entity),
+        ));
+
+        cooldown.remaining = turret.attack_cooldown;
     }
 }
 
