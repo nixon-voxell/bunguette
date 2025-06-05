@@ -122,7 +122,7 @@ fn turret_placement_and_preview(
     >,
     q_tiles: Query<
         &GlobalTransform,
-        (With<PlacementTile>, Without<TileOccupied>),
+        (With<PlacementTile>, Without<PlacedBy>),
     >,
     mut q_previews: QueryPlayers<
         (&mut Transform, &mut Visibility),
@@ -142,10 +142,12 @@ fn turret_placement_and_preview(
         player_entity,
     ) in q_players.iter_mut()
     {
-        let target_position = global_transform.translation();
+        // In front of the player.
+        let target_position = global_transform.translation()
+            + global_transform.forward() * 2.0;
 
         // Create a sphere collider for intersection testing around the camera target
-        let interaction_sphere = Collider::sphere(6.0);
+        let interaction_sphere = Collider::sphere(4.0);
 
         // Check if the tile intersects with the interaction sphere
         let intersections = spatial_query.shape_intersections(
@@ -211,8 +213,6 @@ fn turret_placement_and_preview(
                 continue;
             }
 
-            // Mark tile as occupied.
-            commands.entity(tile_entity).insert(TileOccupied);
             // Spawn the turret.
             commands.spawn((
                 SceneRoot(
@@ -228,6 +228,7 @@ fn turret_placement_and_preview(
                         )?,
                 ),
                 Transform::from_translation(tile_position),
+                PlacedOn(tile_entity),
             ));
 
             *preview_viz = Visibility::Hidden;
@@ -241,26 +242,25 @@ fn turret_placement_and_preview(
     Ok(())
 }
 
+/// Tag component for tiles that can be placed on.
 #[derive(Component, Reflect, Clone, Debug)]
 #[reflect(Component)]
 pub struct PlacementTile;
 
-#[derive(Component, Clone, Debug)]
-pub struct TileOccupied;
-
+/// Tag component for players who are in placement mode.
 #[derive(Component)]
 pub struct InPlacementMode;
 
-/// Marker component for preview mesh.
+/// Tag component for preview mesh.
 #[derive(Component, Clone, Copy)]
 pub struct Preview;
 
-// TODO: PlacedTurrets is not exactly a good name.
-
+/// Attached to a [`PlacementTile`] when it's being placed on.
 #[derive(Component, Deref, Default, Debug)]
-#[relationship_target(relationship = PlacedBy)]
-pub struct PlacedTurrets(Vec<Entity>);
+#[relationship_target(relationship = PlacedOn)]
+pub struct PlacedBy(Vec<Entity>);
 
+/// Attached to the item that is being placed on a [`PlacementTile`].
 #[derive(Component, Deref, Debug)]
-#[relationship(relationship_target = PlacedTurrets)]
-pub struct PlacedBy(Entity);
+#[relationship(relationship_target = PlacedBy)]
+pub struct PlacedOn(Entity);
