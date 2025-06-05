@@ -166,7 +166,7 @@ fn show_placement_preview(
                 commands.spawn((
                     Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))),
                     MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgba(0.0, 1.0, 0.0, 0.8),
+                        base_color: Color::srgba(0.0, 1.0, 0.0, 0.4),
                         alpha_mode: AlphaMode::Blend,
                         emissive: LinearRgba::rgb(0.0, 2.0, 0.0),
                         ..default()
