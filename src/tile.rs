@@ -83,7 +83,7 @@ fn on_freed(
 pub struct TileMap(Vec<Option<TileMeta>>);
 
 impl TileMap {
-    pub fn validate_ivec2(coordinate: &IVec2) -> bool {
+    pub fn within_map_range(coordinate: &IVec2) -> bool {
         const MAP_SIZE: i32 = HALF_MAP_SIZE as i32 * 2;
 
         if coordinate.x < 0 || coordinate.y < 0 {
@@ -98,21 +98,22 @@ impl TileMap {
         true
     }
 
-    pub fn transform_to_uvec2(
+    pub fn transform_to_tile_coord(
         transform: &Transform,
     ) -> Option<UVec2> {
+        // Get the closest tile coordinate.
         let coordinate = transform.translation.xz().round().as_ivec2()
                 // Prevent going negative.
                 + HALF_MAP_SIZE as i32;
 
-        if TileMap::validate_ivec2(&coordinate) == false {
+        if TileMap::within_map_range(&coordinate) == false {
             return None;
         }
 
         Some(coordinate.as_uvec2())
     }
 
-    pub fn uvec2_to_tile_idx(coordinate: &UVec2) -> usize {
+    pub fn tile_coord_to_tile_idx(coordinate: &UVec2) -> usize {
         let map_size = HALF_MAP_SIZE as u32 * 2;
         (coordinate.x + coordinate.y * map_size) as usize
     }
@@ -120,8 +121,12 @@ impl TileMap {
     pub fn transform_to_tile_idx(
         transform: &Transform,
     ) -> Option<usize> {
-        TileMap::transform_to_uvec2(transform)
-            .map(|coord| TileMap::uvec2_to_tile_idx(&coord))
+        TileMap::transform_to_tile_coord(transform)
+            .map(|coord| TileMap::tile_coord_to_tile_idx(&coord))
+    }
+
+    pub fn tile_coord_to_world_space(coordinate: &IVec2) -> IVec2 {
+        coordinate - HALF_MAP_SIZE as i32
     }
 
     fn get_mut(
@@ -132,15 +137,22 @@ impl TileMap {
             .and_then(|index| self.0.get_mut(index))
     }
 
+    /// Find a path from start to end from the tile map.
+    ///
+    /// If a path is found, a vector of world space [`IVec2`]
+    /// will be returned.
+    ///
+    /// None will be returned if there is no valid path.
     pub fn pathfind_to(
         &self,
         start_transform: &Transform,
         end_transform: &Transform,
     ) -> Option<Vec<IVec2>> {
         let start =
-            TileMap::transform_to_uvec2(start_transform)?.as_ivec2();
-        let end =
-            TileMap::transform_to_uvec2(end_transform)?.as_ivec2();
+            TileMap::transform_to_tile_coord(start_transform)?
+                .as_ivec2();
+        let end = TileMap::transform_to_tile_coord(end_transform)?
+            .as_ivec2();
 
         Some(
             astar(
@@ -162,9 +174,9 @@ impl TileMap {
                     .into_iter()
                     .filter(|p| {
                         // Must be a valid coordinate
-                        if TileMap::validate_ivec2(p) {
+                        if TileMap::within_map_range(p) {
                             let tile_meta = self
-                                [TileMap::uvec2_to_tile_idx(
+                                [TileMap::tile_coord_to_tile_idx(
                                     &p.as_uvec2(),
                                 )];
 
@@ -182,7 +194,10 @@ impl TileMap {
                 |potential| potential.distance_squared(end),
                 |coord| *coord == end,
             )?
-            .0,
+            .0
+            .iter()
+            .map(TileMap::tile_coord_to_world_space)
+            .collect(),
         )
     }
 }
@@ -223,3 +238,37 @@ pub struct PlacedBy(Vec<Entity>);
 #[derive(Component, Deref, Debug)]
 #[relationship(relationship_target = PlacedBy)]
 pub struct PlacedOn(pub Entity);
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_within_range() {
+        let tiles = [
+            IVec2::new(-1, 0),
+            IVec2::new(0, -1),
+            IVec2::new(HALF_MAP_SIZE as i32 * 2, 0),
+            IVec2::new(0, HALF_MAP_SIZE as i32 * 2),
+        ];
+
+        for tile in tiles {
+            assert!(TileMap::within_map_range(&tile) == false);
+        }
+    }
+
+    #[test]
+    fn test_coordinate_spaces() {
+        let transform = Transform::from_xyz(1.0, 0.0, 3.0);
+
+        let coord = TileMap::transform_to_tile_coord(&transform)
+            .expect("Should be in range.");
+        let world_space =
+            TileMap::tile_coord_to_world_space(&coord.as_ivec2());
+
+        assert_eq!(
+            world_space,
+            transform.translation.xz().as_ivec2()
+        );
+    }
+}
