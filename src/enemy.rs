@@ -37,16 +37,18 @@ fn pathfind(
                 &end_translation,
                 false,
             ) {
-                println!("{:#?}", path_to_target);
+                info!("To target: {:?}", path_to_target);
                 enemy_path.0 = path_to_target;
             } else if let Some(path_to_tower) = tile_map.pathfind_to(
                 &start_translation,
                 &end_translation,
                 true,
             ) {
+                info!("To tower: {:?}", path_to_tower);
                 enemy_path.0 = path_to_tower;
+                // TODO: Insert compnent to allow enemy to attack tower.
             } else {
-                info!("Can't find path for enemy {entity}!");
+                warn!("Can't find path for enemy {entity}!");
             }
         }
     }
