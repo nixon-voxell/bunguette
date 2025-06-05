@@ -3,11 +3,18 @@
 ({
     "prefabs": Files (
         paths: [
+            "prefabs/polo_bun.glb",
+            "prefabs/baguette.glb",
             "prefabs/rotisserie.glb",
+            "prefabs/wok.glb",
         ],
     ),
 
     "scenes.default": File (
         path: "scenes/default_scene.glb",
+    ),
+
+    "scenes.level1": File (
+        path: "scenes/bread_level.glb",
     ),
 })

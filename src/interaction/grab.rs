@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::reflect::Reflect;
 
 use super::{
-    InteractionPlayer, MarkedItem, Occupied, detect_interactables,
+    InteractionPlayer, MarkerOf, Occupied, detect_interactables,
 };
 
 /// Plugin that sets up grabbing logic for interactable items.
@@ -25,13 +25,11 @@ impl Plugin for GrabPlugin {
     }
 }
 
-/// Reads the E key press and the current MarkedItem to send grab or release events without PlayerAction.
-// TODO: Use PlayerAction instead of KeyCode
 fn grab_input_system(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     q_players: Query<
-        (Entity, &MarkedItem, Option<&GrabState>),
+        (Entity, Option<&MarkerOf>, Option<&GrabState>),
         With<InteractionPlayer>,
     >,
     q_grabbable: Query<&Grabbable>,
@@ -49,7 +47,7 @@ fn grab_input_system(
                     },
                     player_entity,
                 );
-            } else if let Some(target) = marked.0 {
+            } else if let Some(target) = marked.map(|m| m.entity()) {
                 if q_grabbable.get(target).is_ok() {
                     commands.trigger_targets(
                         GrabEvent {

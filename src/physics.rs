@@ -1,11 +1,20 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
+use crate::util::PropagateComponentAppExt;
+
 pub(super) struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(setup_collision_layer);
+        app.add_plugins((
+            PhysicsPlugins::default(),
+            // PhysicsPickingPlugin,
+            PhysicsDebugPlugin::default(),
+        ));
+
+        app.add_observer(setup_collision_layer)
+            .propagate_component::<CollisionLayers, RigidBodyColliders>();
 
         app.register_type::<CollisionLayerConstructor>()
             .register_type::<GameLayer>();
@@ -57,4 +66,5 @@ pub enum GameLayer {
     Player,
     Enemy,
     Interactable,
+    InventoryItem,
 }

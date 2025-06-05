@@ -3,6 +3,9 @@ use bevy::ui::FocusPolicy;
 use bevy::{color::palettes::tailwind::*, ecs::spawn::SpawnWith};
 use widgets::button::{ButtonBackground, LabelButton};
 
+use crate::asset_pipeline::SceneAssetsLoader;
+
+mod inventory_ui;
 pub mod widgets;
 pub mod world_space;
 
@@ -13,12 +16,17 @@ impl Plugin for UiPlugin {
         app.add_plugins((
             world_space::WorldSpaceUiPlugin,
             widgets::WidgetsPlugin,
+            inventory_ui::InventoryUiPlugin,
         ));
 
-        app.add_systems(Startup, setup_menu);
-
-        app.init_state::<Screen>();
+        app.init_state::<Screen>()
+            .add_systems(OnEnter(Screen::Menu), setup_menu)
+            .add_systems(OnEnter(Screen::EnterLevel), load_level1);
     }
+}
+
+fn load_level1(mut scenes: SceneAssetsLoader) -> Result {
+    scenes.load_level1()
 }
 
 fn setup_menu(mut commands: Commands) {
@@ -83,7 +91,8 @@ fn play_on_click(
     _: Trigger<Pointer<Click>>,
     mut screen: ResMut<NextState<Screen>>,
 ) {
-    screen.set(Screen::LevelSelection);
+    // screen.set(Screen::LevelSelection);
+    screen.set(Screen::EnterLevel);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -99,6 +108,6 @@ fn exit_on_click(
 pub enum Screen {
     #[default]
     Menu,
-    LevelSelection,
-    _EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
+    // LevelSelection,
+    EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
 }

@@ -1,0 +1,22 @@
+(
+    {
+        "wok": (
+            ingredients: [
+                (item_id: "corn", quantity: 2),
+            ],
+            output_id: "gun_tower",
+            output_quantity: 1,
+            cooking_duration: 8.0,
+            prefab_name: "wok",
+        ),
+        "rotisserie": (
+            ingredients: [
+                (item_id: "corn", quantity: 3),
+            ],
+            output_id: "cannon_tower",
+            output_quantity: 1,
+            cooking_duration: 10.0,
+            prefab_name: "rotisserie",
+        ),
+    }
+)
