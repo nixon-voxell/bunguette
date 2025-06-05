@@ -5,6 +5,8 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use serde::Deserialize;
 
+use crate::asset_pipeline::PrefabName;
+
 /// Plugin to handle item metadata loading and registry setup
 pub(super) struct ItemPlugin;
 
@@ -41,11 +43,18 @@ pub enum ItemType {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ItemMeta {
     pub icon_path: String,
+    prefab_name: String,
     pub max_stack_size: u32,
     pub item_type: ItemType,
 
     #[serde(skip_serializing, skip_deserializing)]
     pub icon: Handle<Image>,
+}
+
+impl ItemMeta {
+    pub fn prefab_name(&self) -> PrefabName {
+        PrefabName::FileName(&self.prefab_name)
+    }
 }
 
 #[derive(Resource)]

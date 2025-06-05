@@ -2,16 +2,19 @@
     {
         "corn": (
             icon_path: "icons/corn.png",
+            prefab_name: "corn",
             max_stack_size: 10,
             item_type: ingredient,
         ),
         "gun_tower": (
             icon_path: "icons/gun_tower.png",
+            prefab_name: "gun_tower",
             max_stack_size: 10,
             item_type: tower,
         ),
         "cannon_tower": (
             icon_path: "icons/cannon_tower.png",
+            prefab_name: "cannon_tower",
             max_stack_size: 10,
             item_type: tower,
         ),

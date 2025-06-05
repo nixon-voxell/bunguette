@@ -14,6 +14,8 @@ use crate::player::PlayerType;
 pub mod split_screen;
 
 pub const UI_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
+pub const A_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
+pub const B_RENDER_LAYER: RenderLayers = RenderLayers::layer(3);
 
 pub(super) struct CameraControllerPlugin;
 
@@ -248,7 +250,7 @@ fn setup_directional_light(
 #[reflect(Component)]
 pub struct CameraTarget;
 
-/// Snaps camera to the [`GlobalTransform`] of this entity on [add][Added].
+/// Snaps camera to the [`GlobalTransform`] of this entity.
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct CameraSnap;

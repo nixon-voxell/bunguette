@@ -9,6 +9,7 @@ mod inventory;
 mod machine;
 mod physics;
 mod player;
+mod turret;
 mod ui;
 mod util;
 
@@ -31,6 +32,7 @@ impl Plugin for AppPlugin {
             inventory::InventoryPlugin,
             player::PlayerPlugin,
             machine::MachinePlugin,
+            turret::TurretPlugin,
         ));
 
         #[cfg(feature = "dev")]
