@@ -114,7 +114,7 @@ impl TileMap {
         translation: &Vec3,
     ) -> Option<UVec2> {
         // Prevent going negative.
-        let coordinate = (translation.xz().round().as_ivec2() / 2)
+        let coordinate = ((translation.xz() * 0.5).as_ivec2())
             + HALF_MAP_SIZE as i32;
 
         if TileMap::within_map_range(&coordinate) == false {
@@ -136,8 +136,8 @@ impl TileMap {
             .map(|coord| TileMap::tile_coord_to_tile_idx(&coord))
     }
 
-    pub fn tile_coord_to_world_space(coordinate: &IVec2) -> IVec2 {
-        coordinate - HALF_MAP_SIZE as i32
+    pub fn tile_coord_to_world_space(coordinate: &IVec2) -> Vec2 {
+        (coordinate - HALF_MAP_SIZE as i32).as_vec2() * 2.0
     }
 
     fn get_mut(
@@ -159,7 +159,7 @@ impl TileMap {
         start_translation: &Vec3,
         end_translation: &Vec3,
         to_tower: bool,
-    ) -> Option<Vec<IVec2>> {
+    ) -> Option<Vec<Vec2>> {
         let start =
             TileMap::translation_to_tile_coord(start_translation)?
                 .as_ivec2();
@@ -174,21 +174,22 @@ impl TileMap {
                 &start,
                 |&IVec2 { x, y }| {
                     [
-                        // Bottom.
-                        IVec2::new(x, y - 1),
-                        // Left/Right.
-                        IVec2::new(x - 1, y),
-                        IVec2::new(x + 1, y),
                         // Top.
                         IVec2::new(x, y + 1),
+                        // Bottom.
+                        IVec2::new(x, y - 1),
+                        // Left.
+                        IVec2::new(x - 1, y),
+                        // Right.
+                        IVec2::new(x + 1, y),
                     ]
                     .into_iter()
-                    .filter(|p| {
+                    .filter(|coord| {
                         // Must be a valid coordinate
-                        if TileMap::within_map_range(p) {
+                        if TileMap::within_map_range(coord) {
                             let index =
                                 TileMap::tile_coord_to_tile_idx(
-                                    &p.as_uvec2(),
+                                    &coord.as_uvec2(),
                                 );
                             let tile_meta = self[index];
 
@@ -209,12 +210,20 @@ impl TileMap {
                     })
                     .map(|p| (p, 1))
                 },
-                |potential| {
-                    // println!("{potential}");
-                    potential.distance_squared(end)
+                // Always find the one closest to the final target.
+                |potential| potential.distance_squared(end),
+                |coord| {
+                    if to_tower {
+                        let index = TileMap::tile_coord_to_tile_idx(
+                            &coord.as_uvec2(),
+                        );
+                        let tile_meta = self[index];
+                        // Must be a tile that is occupied by towers.
+                        tile_meta.is_some()
+                    } else {
+                        *coord == end
+                    }
                 },
-                // TODO: change goal when to_tower is true.
-                |coord| *coord == end,
             )?
             .0
             .iter()
@@ -282,13 +291,13 @@ mod test {
 
     #[test]
     fn test_coordinate_spaces() {
-        let translation = Vec3::new(1.0, 0.0, 3.0);
+        let translation = Vec3::new(2.0, 0.0, 4.0);
 
         let coord = TileMap::translation_to_tile_coord(&translation)
             .expect("Should be in range.");
         let world_space =
             TileMap::tile_coord_to_world_space(&coord.as_ivec2());
 
-        assert_eq!(world_space, translation.xz().as_ivec2());
+        assert_eq!(world_space, translation.xz());
     }
 }
