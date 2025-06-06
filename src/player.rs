@@ -17,11 +17,14 @@ use crate::character_controller::CharacterController;
 use crate::ui::world_space::WorldUi;
 use crate::util::PropagateComponentAppExt;
 
+mod player_attack;
+
 pub(super) struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<PlayerState>()
+            .add_plugins(player_attack::PlayerAttackPlugin)
             .add_observer(setup_name_ui_for_player)
             .add_systems(
                 OnEnter(PlayerState::Possessing),
