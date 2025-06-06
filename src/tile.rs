@@ -193,25 +193,24 @@ impl TileMap {
                                 );
                             let tile_meta = self[index];
 
-                            let Some(tile_meta) = tile_meta else {
-                                // println!("no tile meta");
-                                return false;
-                            };
-
                             if to_tower {
                                 // Allow pathfinding towards tower.
-                                return true;
+                                return tile_meta.is_some();
                             } else {
                                 // Must not be occupied.
-                                return tile_meta.occupied == false;
+                                return tile_meta.is_some_and(|t| {
+                                    t.occupied == false
+                                });
                             }
                         }
                         false
                     })
                     .map(|p| (p, 1))
                 },
-                // Always find the one closest to the final target.
-                |potential| potential.distance_squared(end),
+                |potential| {
+                    let target = if to_tower { start } else { end };
+                    potential.distance_squared(target)
+                },
                 |coord| {
                     if to_tower {
                         let index = TileMap::tile_coord_to_tile_idx(
@@ -219,7 +218,7 @@ impl TileMap {
                         );
                         let tile_meta = self[index];
                         // Must be a tile that is occupied by towers.
-                        tile_meta.is_some()
+                        tile_meta.is_some_and(|t| t.occupied)
                     } else {
                         *coord == end
                     }
@@ -240,7 +239,7 @@ impl Default for TileMap {
     }
 }
 
-#[derive(Reflect, Clone, Copy)]
+#[derive(Reflect, Debug, Clone, Copy)]
 pub struct TileMeta {
     #[allow(dead_code)]
     target: Entity,

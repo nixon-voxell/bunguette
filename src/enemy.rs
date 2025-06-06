@@ -20,10 +20,7 @@ impl Plugin for EnemyPlugin {
 
 fn pathfind(
     mut commands: Commands,
-    q_enemies: Query<
-        (&Path, &GlobalTransform, Entity),
-        Without<TargetType>,
-    >,
+    q_enemies: Query<(&Path, &GlobalTransform, Entity)>,
     q_final_target: Query<&GlobalTransform, With<FinalTarget>>,
     tile_map: Res<TileMap>,
 ) {
