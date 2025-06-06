@@ -260,12 +260,12 @@ impl TileMeta {
 #[reflect(Component)]
 pub struct Tile;
 
-/// Attached to a [`PlacementTile`] when it's being placed on.
+/// Attached to a [`Tile`] when it's being placed on.
 #[derive(Component, Deref, Default, Debug)]
 #[relationship_target(relationship = PlacedOn)]
 pub struct PlacedBy(Vec<Entity>);
 
-/// Attached to the item that is being placed on a [`PlacementTile`].
+/// Attached to the item that is being placed on a [`Tile`].
 #[derive(Component, Deref, Debug)]
 #[relationship(relationship_target = PlacedBy)]
 pub struct PlacedOn(pub Entity);
