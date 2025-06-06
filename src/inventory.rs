@@ -314,10 +314,12 @@ impl Inventory {
 
         for ingredient in recipe.ingredients.iter() {
             // SAFETY: We already made sure that the ingredients above.
+            // In caes the quantity is actually zero!
+            let mut default_0 = 0;
             let available_quantity = self
                 .ingredients
                 .get_mut(&ingredient.item_id)
-                .unwrap();
+                .unwrap_or(&mut default_0);
 
             *available_quantity -= ingredient.quantity;
         }
