@@ -10,6 +10,7 @@ use crate::character_controller::CharacterController;
 use crate::inventory::Inventory;
 use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::player::{PlayerType, QueryPlayers};
+use crate::turret::turret_attack::PathPriority;
 
 mod turret_attack;
 
@@ -28,7 +29,8 @@ impl Plugin for TurretPlugin {
                 )
                     .chain(),
             );
-        app.register_type::<PlacementTile>();
+        app.register_type::<PlacementTile>()
+            .register_type::<Enemy>();
     }
 }
 
@@ -258,6 +260,21 @@ pub struct InPlacementMode;
 /// Tag component for preview mesh.
 #[derive(Component, Clone, Copy)]
 pub struct Preview;
+
+/// Enemy marker component
+#[derive(Component, Reflect, Debug)]
+#[reflect(Component)]
+#[require(CollisionEventsEnabled, PathPriority)]
+pub struct Enemy;
+
+/// Projectile component representing a fired projectile
+#[derive(Component, Debug)]
+#[require(CollisionEventsEnabled)]
+pub struct Projectile {
+    pub velocity: Vec3,
+    pub damage: f32,
+    pub lifetime: f32,
+}
 
 /// Attached to a [`PlacementTile`] when it's being placed on.
 #[derive(Component, Deref, Default, Debug)]

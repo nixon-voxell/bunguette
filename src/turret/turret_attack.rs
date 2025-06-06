@@ -1,6 +1,8 @@
-use crate::physics::GameLayer;
 use avian3d::prelude::*;
 use bevy::prelude::*;
+
+use crate::physics::GameLayer;
+use crate::turret::{Enemy, Projectile};
 
 pub(super) struct TurretAttackPlugin;
 
@@ -359,27 +361,12 @@ impl Default for PathPriority {
     }
 }
 
-/// Enemy marker component
-#[derive(Component, Reflect, Debug)]
-#[reflect(Component)]
-#[require(CollisionEventsEnabled, PathPriority)]
-pub struct Enemy;
-
 /// Health component for entities that can take damage
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
 pub struct Health {
     pub current: f32,
     pub max: f32,
-}
-
-/// Projectile component representing a fired projectile
-#[derive(Component, Debug)]
-#[require(CollisionEventsEnabled)]
-pub struct Projectile {
-    pub velocity: Vec3,
-    pub damage: f32,
-    pub lifetime: f32,
 }
 
 /// Relationship components for turret targeting
