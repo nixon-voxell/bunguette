@@ -1,7 +1,8 @@
 use avian3d::prelude::*;
+use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
 use bevy::prelude::*;
 
-use crate::enemy::{Enemy, Path};
+use crate::enemy::{Enemy, IsEnemy, Path};
 use crate::physics::GameLayer;
 
 use super::Projectile;
@@ -25,7 +26,7 @@ impl Plugin for TowerAttackPlugin {
             ),
         );
 
-        app.register_type::<Tower>().register_type::<Health>();
+        app.register_type::<Tower>().register_type::<MaxHealth>();
     }
 }
 
@@ -180,7 +181,8 @@ fn tower_shooting(
 
         let tower_position = global_transform.translation();
         let target_position =
-            q_enemies.get(target.entity())?.translation();
+            q_enemies.get(target.entity())?.translation()
+                + Vec3::Y * 0.5;
 
         // Check if tower is facing the target
         let tower_forward = -transform.forward();
@@ -230,19 +232,20 @@ fn handle_projectile_collisions(
     mut commands: Commands,
     mut collision_events: EventReader<CollisionStarted>,
     q_projectiles: Query<&Projectile>,
-    q_enemies: Query<(), With<Enemy>>,
-    mut q_health: Query<&mut Health>,
+    q_collider_ofs: Query<&ColliderOf>,
+    q_is_enemy: Query<(), With<IsEnemy>>,
+    mut q_healths: Query<&mut Health>,
 ) {
     for CollisionStarted(entity1, entity2) in collision_events.read()
     {
         // Check if one is projectile, other is enemy
         let (projectile_entity, enemy_entity) = if q_projectiles
             .contains(*entity1)
-            && q_enemies.contains(*entity2)
+            && q_is_enemy.contains(*entity2)
         {
             (*entity1, *entity2)
         } else if q_projectiles.contains(*entity2)
-            && q_enemies.contains(*entity1)
+            && q_is_enemy.contains(*entity1)
         {
             (*entity2, *entity1)
         } else {
@@ -251,10 +254,15 @@ fn handle_projectile_collisions(
 
         // Get projectile data and apply damage
         if let Ok(projectile) = q_projectiles.get(projectile_entity) {
-            if let Ok(mut health) = q_health.get_mut(enemy_entity) {
-                health.current -= projectile.damage;
+            let enemy_entity = q_collider_ofs
+                .get(enemy_entity)
+                .map(|c| c.body)
+                .unwrap_or(enemy_entity);
 
-                if health.current <= 0.0 {
+            if let Ok(mut health) = q_healths.get_mut(enemy_entity) {
+                health.0 -= projectile.damage;
+
+                if health.0 <= 0.0 {
                     commands.entity(enemy_entity).despawn();
                 }
             }
@@ -309,12 +317,32 @@ pub struct Tower {
 pub struct TowerCooldown(f32);
 
 /// Health component for entities that can take damage
-#[derive(Component, Reflect, Debug)]
+#[derive(Reflect, Debug)]
 #[reflect(Component)]
-pub struct Health {
-    pub current: f32,
-    pub max: f32,
+pub struct MaxHealth(pub f32);
+
+impl Component for MaxHealth {
+    const STORAGE_TYPE: StorageType = StorageType::Table;
+
+    type Mutability = Immutable;
+
+    /// Setup camera tag: [`Health`] based on [`MaxHealth`].
+    fn register_component_hooks(hooks: &mut ComponentHooks) {
+        hooks.on_add(|mut world, hook| {
+            let entity = hook.entity;
+            let max_health =
+                world.get::<Self>(hook.entity).unwrap().0;
+
+            world
+                .commands()
+                .entity(entity)
+                .insert(Health(max_health));
+        });
+    }
 }
+
+#[derive(Component, Deref, DerefMut, Debug)]
+pub struct Health(pub f32);
 
 /// Relationship components for tower targeting
 #[derive(Component, Deref, Debug)]

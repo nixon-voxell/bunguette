@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::action::{PlayerAction, TargetAction};
-use crate::asset_pipeline::{AssetState, PrefabAssets};
+use crate::asset_pipeline::{AssetState, CurrentScene, PrefabAssets};
 use crate::camera_controller::{A_RENDER_LAYER, B_RENDER_LAYER};
 use crate::character_controller::CharacterController;
 use crate::inventory::Inventory;
@@ -38,7 +38,7 @@ fn setup_preview_cube(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let preview_cube = (
-        Mesh3d(meshes.add(Cuboid::new(1.5, 1.5, 1.5))),
+        Mesh3d(meshes.add(Cuboid::new(0.5, 0.5, 0.5))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: GREEN_600.with_alpha(0.4).into(),
             alpha_mode: AlphaMode::Blend,
@@ -134,7 +134,12 @@ fn tower_placement_and_preview(
     spatial_query: SpatialQuery,
     prefabs: Res<PrefabAssets>,
     gltfs: Res<Assets<Gltf>>,
+    current_scene: Res<CurrentScene>,
 ) -> Result {
+    let Some(current_scene) = current_scene.get() else {
+        return Ok(());
+    };
+
     for (
         global_transform,
         player_type,
@@ -230,13 +235,15 @@ fn tower_placement_and_preview(
                 ),
                 Transform::from_translation(tile_position),
                 PlacedOn(tile_entity),
+                ChildOf(current_scene),
             ));
 
             *preview_viz = Visibility::Hidden;
         } else {
             *preview_viz = Visibility::Inherited;
             // Move the preview cube to the tile position.
-            preview_transform.translation = tile_position + Vec3::Y;
+            preview_transform.translation =
+                tile_position + Vec3::Y * 0.25;
         }
     }
 

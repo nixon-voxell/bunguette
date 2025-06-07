@@ -1,19 +1,22 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::{physics::GameLayer, tile::TileMap};
+use crate::physics::GameLayer;
+use crate::tile::TileMap;
+use crate::util::PropagateComponentAppExt;
 
 pub(super) struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            PostUpdate,
-            pathfind.after(TransformSystem::TransformPropagate),
-        )
-        .add_systems(FixedUpdate, enemy_movement)
-        .add_observer(on_path_changed)
-        .add_observer(setup_enemy_collision);
+        app.propagate_component::<IsEnemy, Children>()
+            .add_systems(
+                PostUpdate,
+                pathfind.after(TransformSystem::TransformPropagate),
+            )
+            .add_systems(FixedUpdate, enemy_movement)
+            .add_observer(on_path_changed)
+            .add_observer(setup_enemy_collision);
 
         app.register_type::<FinalTarget>().register_type::<Enemy>();
     }
@@ -131,13 +134,18 @@ fn setup_enemy_collision(
 #[reflect(Component)]
 pub struct FinalTarget;
 
-/// Tag component for enemy units.
+/// Configuration for the enemy unit.
 #[derive(Component, Reflect)]
-#[require(Path, CollisionEventsEnabled)]
+#[require(IsEnemy, Path, CollisionEventsEnabled)]
 #[reflect(Component)]
 pub struct Enemy {
     movement_speed: f32,
 }
+
+/// Tag component for enemy units.
+/// Will be propagated down the hierarchy.
+#[derive(Component, Default, Clone, Copy)]
+pub struct IsEnemy;
 
 /// The current path of the enemy.
 #[derive(Component, Deref, Default)]
