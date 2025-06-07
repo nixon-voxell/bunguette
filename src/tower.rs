@@ -12,18 +12,18 @@ use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::player::{PlayerType, QueryPlayers};
 use crate::tile::{PlacedBy, PlacedOn, Tile};
 
-mod turret_attack;
+mod tower_attack;
 
-pub struct TurretPlugin;
+pub struct TowerPlugin;
 
-impl Plugin for TurretPlugin {
+impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(turret_attack::TurretAttackPlugin);
+        app.add_plugins(tower_attack::TowerAttackPlugin);
 
         app.add_systems(Startup, setup_preview_cube).add_systems(
             Update,
             (
-                turret_placement_and_preview
+                tower_placement_and_preview
                     .run_if(in_state(AssetState::Loaded)),
                 (enter_placement_mode, exit_placement_mode),
             )
@@ -111,7 +111,7 @@ fn exit_placement_mode(
     Ok(())
 }
 
-fn turret_placement_and_preview(
+fn tower_placement_and_preview(
     mut commands: Commands,
     // Find players in placement mode.
     mut q_players: Query<
@@ -214,7 +214,7 @@ fn turret_placement_and_preview(
                 continue;
             }
 
-            // Spawn the turret.
+            // Spawn the tower.
             commands.spawn((
                 SceneRoot(
                     prefabs

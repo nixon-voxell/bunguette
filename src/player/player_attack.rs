@@ -6,7 +6,7 @@ use crate::character_controller::CharacterController;
 use crate::enemy::Enemy;
 use crate::physics::GameLayer;
 use crate::player::PlayerType;
-use crate::turret::Projectile;
+use crate::tower::Projectile;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;
@@ -148,7 +148,7 @@ fn player_shooting(
     }
 }
 
-/// Player weapon component with configurable stats
+/// Player weapon component with configurable stats.
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
 #[require(PlayerAttackCooldown)]
@@ -159,7 +159,7 @@ pub struct PlayerWeapon {
     pub projectile_lifetime: f32,
 }
 
-/// Player attack cooldown
+/// Player attack cooldown.
 #[derive(Component, Debug, Default)]
 pub struct PlayerAttackCooldown {
     pub remaining: f32,

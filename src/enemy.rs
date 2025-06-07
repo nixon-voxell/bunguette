@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::tile::TileMap;
+use crate::{physics::GameLayer, tile::TileMap};
 
 pub(super) struct EnemyPlugin;
 
@@ -12,7 +12,8 @@ impl Plugin for EnemyPlugin {
             pathfind.after(TransformSystem::TransformPropagate),
         )
         .add_systems(FixedUpdate, enemy_movement)
-        .add_observer(on_path_changed);
+        .add_observer(on_path_changed)
+        .add_observer(setup_enemy_collision);
 
         app.register_type::<FinalTarget>().register_type::<Enemy>();
     }
@@ -113,6 +114,17 @@ fn enemy_movement(
         linear_velocity.0 =
             Vec3::new(target_velocity.x, 0.0, target_velocity.y);
     }
+}
+
+/// Add collision layers to enemies.
+fn setup_enemy_collision(
+    trigger: Trigger<OnAdd, Enemy>,
+    mut commands: Commands,
+) {
+    commands.entity(trigger.target()).insert((
+        CollisionLayers::new(GameLayer::Enemy, LayerMask::ALL),
+        CollisionEventsEnabled,
+    ));
 }
 
 #[derive(Component, Reflect)]

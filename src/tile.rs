@@ -34,7 +34,6 @@ fn setup_tile(
 ) -> Result {
     for (transform, entity) in q_tiles.iter() {
         let translation = transform.translation();
-        info!("setting up tile for {entity}, {translation}",);
 
         *tile_map.get_mut(&translation).ok_or(format!(
             "Unable to get tile for {entity}, {translation}"
