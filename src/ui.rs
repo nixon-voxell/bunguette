@@ -1,6 +1,7 @@
+use bevy::color::palettes::tailwind::*;
+use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
-use bevy::{color::palettes::tailwind::*, ecs::spawn::SpawnWith};
 use widgets::button::{ButtonBackground, LabelButton};
 
 use crate::asset_pipeline::SceneAssetsLoader;
