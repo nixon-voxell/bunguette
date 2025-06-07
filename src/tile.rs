@@ -185,42 +185,55 @@ impl TileMap {
                     ]
                     .into_iter()
                     .filter(|coord| {
-                        // Must be a valid coordinate
-                        if TileMap::within_map_range(coord) {
+                        // Must be a valid coordinate.
+                        if TileMap::within_map_range(coord) == false {
+                            return false;
+                        }
+                        let index = TileMap::tile_coord_to_tile_idx(
+                            &coord.as_uvec2(),
+                        );
+                        let tile_meta = self[index];
+
+                        // Must not be occupied.
+                        tile_meta.is_some_and(|t| t.occupied == false)
+                    })
+                    .map(|p| (p, 1))
+                },
+                // Always find the closest to the target.
+                |potential| potential.distance_squared(end),
+                |&IVec2 { x, y }| {
+                    if to_tower {
+                        // The surroundings needs to have a tower.
+                        [
+                            // Top.
+                            IVec2::new(x, y + 1),
+                            // Bottom.
+                            IVec2::new(x, y - 1),
+                            // Left.
+                            IVec2::new(x - 1, y),
+                            // Right.
+                            IVec2::new(x + 1, y),
+                        ]
+                        .into_iter()
+                        .any(|coord| {
+                            // Must be a valid coordinate.
+                            if TileMap::within_map_range(&coord)
+                                == false
+                            {
+                                return false;
+                            }
+
                             let index =
                                 TileMap::tile_coord_to_tile_idx(
                                     &coord.as_uvec2(),
                                 );
                             let tile_meta = self[index];
 
-                            if to_tower {
-                                // Allow pathfinding towards tower.
-                                return tile_meta.is_some();
-                            } else {
-                                // Must not be occupied.
-                                return tile_meta.is_some_and(|t| {
-                                    t.occupied == false
-                                });
-                            }
-                        }
-                        false
-                    })
-                    .map(|p| (p, 1))
-                },
-                |potential| {
-                    let target = if to_tower { start } else { end };
-                    potential.distance_squared(target)
-                },
-                |coord| {
-                    if to_tower {
-                        let index = TileMap::tile_coord_to_tile_idx(
-                            &coord.as_uvec2(),
-                        );
-                        let tile_meta = self[index];
-                        // Must be a tile that is occupied by towers.
-                        tile_meta.is_some_and(|t| t.occupied)
+                            // Allow pathfinding towards tower.
+                            tile_meta.is_some_and(|t| t.occupied)
+                        })
                     } else {
-                        *coord == end
+                        IVec2::new(x, y) == end
                     }
                 },
             )?

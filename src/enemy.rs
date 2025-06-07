@@ -53,7 +53,6 @@ fn pathfind(
                 commands
                     .entity(entity)
                     .insert((Path(path_to_tower), TargetType::Tower));
-                // TODO: Insert compnent to allow enemy to attack tower.
             } else {
                 warn!("Can't find path for enemy {entity}!");
             }
@@ -65,17 +64,25 @@ fn on_path_changed(
     trigger: Trigger<OnInsert, Path>,
     mut commands: Commands,
 ) {
-    commands.entity(trigger.target()).insert(PathIndex(0));
+    commands
+        .entity(trigger.target())
+        .insert(PathIndex(0))
+        .remove::<TargetReached>();
 }
 
 fn enemy_movement(
-    mut q_enemies: Query<(
-        &Enemy,
-        &Path,
-        &mut PathIndex,
-        &mut LinearVelocity,
-        &Position,
-    )>,
+    mut commands: Commands,
+    mut q_enemies: Query<
+        (
+            &Enemy,
+            &Path,
+            &mut PathIndex,
+            &mut LinearVelocity,
+            &Position,
+            Entity,
+        ),
+        Without<TargetReached>,
+    >,
 ) {
     for (
         enemy,
@@ -83,11 +90,13 @@ fn enemy_movement(
         mut path_index,
         mut linear_velocity,
         position,
+        entity,
     ) in q_enemies.iter_mut()
     {
         let Some(target_position) = path.get_target(&path_index)
         else {
             linear_velocity.0 = Vec3::ZERO;
+            commands.entity(entity).insert(TargetReached);
             continue;
         };
 
@@ -146,4 +155,4 @@ pub enum TargetType {
 }
 
 #[derive(Component)]
-pub struct Attacking;
+pub struct TargetReached;
