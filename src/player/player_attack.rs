@@ -3,9 +3,10 @@ use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
 use crate::character_controller::CharacterController;
+use crate::enemy::Enemy;
 use crate::physics::GameLayer;
 use crate::player::PlayerType;
-use crate::turret::{Enemy, Projectile};
+use crate::turret::Projectile;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use leafwing_input_manager::prelude::ActionState;

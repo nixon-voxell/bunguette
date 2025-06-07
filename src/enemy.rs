@@ -121,7 +121,7 @@ pub struct FinalTarget;
 
 /// Tag component for enemy units.
 #[derive(Component, Reflect)]
-#[require(Path)]
+#[require(Path, CollisionEventsEnabled)]
 #[reflect(Component)]
 pub struct Enemy {
     movement_speed: f32,

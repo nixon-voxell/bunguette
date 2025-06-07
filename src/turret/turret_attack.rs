@@ -1,8 +1,9 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
+use crate::enemy::Enemy;
 use crate::physics::GameLayer;
-use crate::turret::{Enemy, Projectile};
+use crate::turret::Projectile;
 
 pub(super) struct TurretAttackPlugin;
 
