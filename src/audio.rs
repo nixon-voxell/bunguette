@@ -2,7 +2,9 @@ use bevy::prelude::*;
 use bevy_seedling::prelude::*;
 use bevy_seedling::sample::Sample;
 
+use crate::character_controller::CharacterController;
 use crate::machine::{Machine, OperationTimer};
+use crate::player::PlayerType;
 
 pub(super) struct AudioPlugin;
 
@@ -11,7 +13,8 @@ impl Plugin for AudioPlugin {
         app.add_plugins(SeedlingPlugin::default())
             .init_resource::<GameAudio>()
             .add_observer(start_machine_audio)
-            .add_observer(stop_machine_audio);
+            .add_observer(stop_machine_audio)
+            .add_observer(setup_player_audio_listener);
     }
 }
 
@@ -34,15 +37,30 @@ impl FromWorld for GameAudio {
     }
 }
 
-/// Start audio when machines begin operating
+/// Set up the audio listener for player entities
+fn setup_player_audio_listener(
+    trigger: Trigger<OnAdd, PlayerType>,
+    mut commands: Commands,
+    q_characters: Query<(), With<CharacterController>>,
+) {
+    let entity = trigger.target();
+
+    if q_characters.get(entity).is_ok() {
+        commands.entity(entity).insert(SpatialListener3D);
+    }
+}
+
+/// Start audio when machines start operating
 fn start_machine_audio(
     trigger: Trigger<OnAdd, OperationTimer>,
     mut commands: Commands,
-    q_machines: Query<&Machine>,
+    q_machines: Query<(&Machine, &GlobalTransform)>,
     audio: Res<GameAudio>,
 ) {
     let machine_entity = trigger.target();
-    let Ok(machine) = q_machines.get(machine_entity) else {
+    let Ok((machine, machine_transform)) =
+        q_machines.get(machine_entity)
+    else {
         return;
     };
 
@@ -52,14 +70,23 @@ fn start_machine_audio(
         _ => return,
     };
 
-    // Spawn sound and store its entity on the machine
+    // Spawn the sound player entity with spatial audio components
     let sound_entity = commands
-        .spawn(
+        .spawn((
             SamplePlayer::new(sound_handle)
                 .looping()
-                .with_volume(Volume::Linear(0.3)),
-        )
+                .with_volume(Volume::Linear(0.2)),
+            GlobalTransform::from_translation(
+                machine_transform.translation(),
+            ),
+            SpatialBasicNode {
+                panning_threshold: 0.2,
+                ..Default::default()
+            },
+            SpatialScale(Vec3::splat(0.4)),
+        ))
         .id();
+
     commands
         .entity(machine_entity)
         .insert(PlayingAudio(sound_entity));
