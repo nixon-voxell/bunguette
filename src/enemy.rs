@@ -15,8 +15,7 @@ impl Plugin for EnemyPlugin {
                 pathfind.after(TransformSystem::TransformPropagate),
             )
             .add_systems(FixedUpdate, enemy_movement)
-            .add_observer(on_path_changed)
-            .add_observer(setup_enemy_collision);
+            .add_observer(on_path_changed);
 
         app.register_type::<FinalTarget>().register_type::<Enemy>();
     }
@@ -119,24 +118,18 @@ fn enemy_movement(
     }
 }
 
-/// Add collision layers to enemies.
-fn setup_enemy_collision(
-    trigger: Trigger<OnAdd, Enemy>,
-    mut commands: Commands,
-) {
-    commands.entity(trigger.target()).insert((
-        CollisionLayers::new(GameLayer::Enemy, LayerMask::ALL),
-        CollisionEventsEnabled,
-    ));
-}
-
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct FinalTarget;
 
 /// Configuration for the enemy unit.
 #[derive(Component, Reflect)]
-#[require(IsEnemy, Path, CollisionEventsEnabled)]
+#[require(
+    IsEnemy,
+    Path,
+    CollisionEventsEnabled,
+    CollisionLayers::new(GameLayer::Enemy, LayerMask::ALL)
+)]
 #[reflect(Component)]
 pub struct Enemy {
     movement_speed: f32,

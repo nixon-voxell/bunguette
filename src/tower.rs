@@ -9,6 +9,7 @@ use crate::camera_controller::{A_RENDER_LAYER, B_RENDER_LAYER};
 use crate::character_controller::CharacterController;
 use crate::inventory::Inventory;
 use crate::inventory::item::{ItemRegistry, ItemType};
+use crate::physics::GameLayer;
 use crate::player::{PlayerType, QueryPlayers};
 use crate::tile::{PlacedBy, PlacedOn, Tile};
 
@@ -260,7 +261,11 @@ pub struct Preview;
 
 /// Projectile component representing a fired projectile
 #[derive(Component, Debug)]
-#[require(CollisionEventsEnabled)]
+#[require(
+    RigidBody::Kinematic,
+    CollisionEventsEnabled,
+    CollisionLayers::new(GameLayer::Projectile, GameLayer::Enemy,)
+)]
 pub struct Projectile {
     pub velocity: Vec3,
     pub damage: f32,

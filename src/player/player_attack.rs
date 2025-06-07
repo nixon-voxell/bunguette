@@ -3,7 +3,7 @@ use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
 use crate::character_controller::CharacterController;
-use crate::enemy::Enemy;
+use crate::enemy::{Enemy, IsEnemy};
 use crate::physics::GameLayer;
 use crate::player::PlayerType;
 use crate::tower::Projectile;
@@ -25,7 +25,7 @@ fn update_cooldowns(
     time: Res<Time>,
 ) {
     for mut cooldown in q_cooldowns.iter_mut() {
-        cooldown.remaining -= time.delta_secs();
+        cooldown.0 -= time.delta_secs();
     }
 }
 
@@ -43,7 +43,7 @@ fn player_shooting(
     >,
     q_cameras: QueryCameras<&GlobalTransform>,
     q_actions: Query<&ActionState<PlayerAction>>,
-    q_enemies: Query<&GlobalTransform, With<Enemy>>,
+    q_enemies: Query<&GlobalTransform, With<IsEnemy>>,
     spatial_query: SpatialQuery,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -57,7 +57,7 @@ fn player_shooting(
     ) in q_players.iter_mut()
     {
         // Check cooldown
-        if cooldown.remaining > 0.0 {
+        if cooldown.0 > 0.0 {
             continue;
         }
 
@@ -129,13 +129,7 @@ fn player_shooting(
             Transform::from_translation(
                 projectile_start + player_transform.forward() * 0.5,
             ),
-            RigidBody::Kinematic,
             Collider::sphere(0.08),
-            CollisionLayers::new(
-                GameLayer::Projectile,
-                GameLayer::Enemy,
-            ),
-            CollisionEventsEnabled,
             Projectile {
                 velocity: target_direction * weapon.projectile_speed,
                 damage: weapon.damage,
@@ -144,7 +138,7 @@ fn player_shooting(
         ));
 
         // Reset cooldown
-        cooldown.remaining = weapon.attack_cooldown;
+        cooldown.0 = weapon.attack_cooldown;
     }
 }
 
@@ -160,7 +154,5 @@ pub struct PlayerWeapon {
 }
 
 /// Player attack cooldown.
-#[derive(Component, Debug, Default)]
-pub struct PlayerAttackCooldown {
-    pub remaining: f32,
-}
+#[derive(Component, Deref, DerefMut, Debug, Default)]
+pub struct PlayerAttackCooldown(f32);

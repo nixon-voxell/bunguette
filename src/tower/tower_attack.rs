@@ -206,19 +206,12 @@ fn tower_shooting(
                 ..default()
             })),
             Transform::from_translation(projectile_start),
-            RigidBody::Kinematic,
             Collider::sphere(0.1),
-            CollisionLayers::new(
-                GameLayer::Projectile,
-                GameLayer::Enemy,
-            ),
-            CollisionEventsEnabled,
             Projectile {
                 velocity: direction * tower.projectile_speed,
                 damage: tower.damage,
                 lifetime: 3.0,
             },
-            ProjectileFiredBy(tower_entity),
         ));
 
         cooldown.0 = tower.attack_cooldown;
@@ -352,12 +345,3 @@ pub struct Target(Entity);
 #[derive(Component, Deref, Default, Debug)]
 #[relationship_target(relationship = Target)]
 pub struct TargetsOf(Vec<Entity>);
-
-/// Relationship components for projectiles
-#[derive(Component, Deref, Default, Debug)]
-#[relationship_target(relationship = ProjectileFiredBy)]
-pub struct FiredProjectiles(Vec<Entity>);
-
-#[derive(Component, Deref, Debug)]
-#[relationship(relationship_target = FiredProjectiles)]
-pub struct ProjectileFiredBy(Entity);
