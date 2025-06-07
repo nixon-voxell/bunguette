@@ -124,8 +124,9 @@ impl TileMap {
         translation: &Vec3,
     ) -> Option<UVec2> {
         // Prevent going negative.
-        let coordinate = ((translation.xz() * 0.5).as_ivec2())
-            + HALF_MAP_SIZE as i32;
+        let coordinate =
+            ((translation.xz() * 0.5).round().as_ivec2())
+                + HALF_MAP_SIZE as i32;
 
         if TileMap::within_map_range(&coordinate) == false {
             return None;

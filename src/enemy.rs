@@ -8,10 +8,18 @@ use crate::tile::{PlacedBy, TileMap};
 use crate::tower::tower_attack::{Health, Tower};
 use crate::util::PropagateComponentAppExt;
 
+mod animation;
+mod spawner;
+
 pub(super) struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
+        app.add_plugins((
+            animation::EnemyAnimationPlugin,
+            spawner::EnemySpawnerPlugin,
+        ));
+
         app.propagate_component::<IsEnemy, Children>()
             .add_systems(
                 PostUpdate,
@@ -193,7 +201,7 @@ fn target_reach_respond(
             // (as we are only getting the SceneRoot).
             for child in q_children.iter_descendants(tower_parent) {
                 if q_is_tower.contains(child) {
-                    println!("set target tower {tower_parent}");
+                    info!("Set target tower {tower_parent}");
                     commands.entity(entity).try_insert(TargetTower {
                         root: tower_parent,
                         target: child,
