@@ -53,6 +53,7 @@ fn check_target_range(
 fn find_target(
     mut commands: Commands,
     q_towers: Query<(&Tower, Entity), Without<Target>>,
+    q_collider_ofs: Query<&ColliderOf>,
     q_enemies: Query<(&Path, Entity), With<Enemy>>,
     q_global_transforms: Query<&GlobalTransform>,
     spatial_query: SpatialQuery,
@@ -76,8 +77,12 @@ fn find_target(
         let mut least_path = usize::MAX;
 
         for entity in intersections {
-            let Ok((path, enemy_entity)) = q_enemies.get(entity)
-            else {
+            let Ok((path, enemy_entity)) = q_enemies.get(
+                q_collider_ofs
+                    .get(entity)
+                    .map(|c| c.body)
+                    .unwrap_or(entity),
+            ) else {
                 continue;
             };
 
