@@ -10,7 +10,7 @@ use crate::character_controller::CharacterController;
 use crate::inventory::Inventory;
 use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::player::{PlayerType, QueryPlayers};
-use crate::turret::turret_attack::PathPriority;
+use crate::tile::{PlacedBy, PlacedOn, Tile};
 
 mod turret_attack;
 
@@ -18,19 +18,17 @@ pub struct TurretPlugin;
 
 impl Plugin for TurretPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(turret_attack::TurretAttackPlugin)
-            .add_systems(Startup, setup_preview_cube)
-            .add_systems(
-                Update,
-                (
-                    turret_placement_and_preview
-                        .run_if(in_state(AssetState::Loaded)),
-                    (enter_placement_mode, exit_placement_mode),
-                )
-                    .chain(),
-            );
-        app.register_type::<PlacementTile>()
-            .register_type::<Enemy>();
+        app.add_plugins(turret_attack::TurretAttackPlugin);
+
+        app.add_systems(Startup, setup_preview_cube).add_systems(
+            Update,
+            (
+                turret_placement_and_preview
+                    .run_if(in_state(AssetState::Loaded)),
+                (enter_placement_mode, exit_placement_mode),
+            )
+                .chain(),
+        );
     }
 }
 
@@ -126,10 +124,7 @@ fn turret_placement_and_preview(
         ),
         (With<CharacterController>, With<InPlacementMode>),
     >,
-    q_tiles: Query<
-        &GlobalTransform,
-        (With<PlacementTile>, Without<PlacedBy>),
-    >,
+    q_tiles: Query<&GlobalTransform, (With<Tile>, Without<PlacedBy>)>,
     mut q_previews: QueryPlayers<
         (&mut Transform, &mut Visibility),
         With<Preview>,
@@ -248,11 +243,6 @@ fn turret_placement_and_preview(
     Ok(())
 }
 
-/// Tag component for tiles that can be placed on.
-#[derive(Component, Reflect, Clone, Debug)]
-#[reflect(Component)]
-pub struct PlacementTile;
-
 /// Tag component for players who are in placement mode.
 #[derive(Component)]
 pub struct InPlacementMode;
@@ -260,12 +250,6 @@ pub struct InPlacementMode;
 /// Tag component for preview mesh.
 #[derive(Component, Clone, Copy)]
 pub struct Preview;
-
-/// Enemy marker component
-#[derive(Component, Reflect, Debug)]
-#[reflect(Component)]
-#[require(CollisionEventsEnabled, PathPriority)]
-pub struct Enemy;
 
 /// Projectile component representing a fired projectile
 #[derive(Component, Debug)]
@@ -275,13 +259,3 @@ pub struct Projectile {
     pub damage: f32,
     pub lifetime: f32,
 }
-
-/// Attached to a [`PlacementTile`] when it's being placed on.
-#[derive(Component, Deref, Default, Debug)]
-#[relationship_target(relationship = PlacedOn)]
-pub struct PlacedBy(Vec<Entity>);
-
-/// Attached to the item that is being placed on a [`PlacementTile`].
-#[derive(Component, Deref, Debug)]
-#[relationship(relationship_target = PlacedBy)]
-pub struct PlacedOn(Entity);
