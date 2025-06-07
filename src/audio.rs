@@ -10,10 +10,8 @@ impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(SeedlingPlugin::default())
             .init_resource::<GameAudio>()
-            .add_systems(
-                Update,
-                (start_machine_audio, stop_machine_audio),
-            );
+            .add_observer(start_machine_audio)
+            .add_observer(stop_machine_audio);
     }
 }
 
@@ -38,44 +36,49 @@ impl FromWorld for GameAudio {
 
 /// Start audio when machines begin operating
 fn start_machine_audio(
+    trigger: Trigger<OnAdd, OperationTimer>,
     mut commands: Commands,
-    q_new_operation: Query<(&Machine, Entity), Added<OperationTimer>>,
+    q_machines: Query<&Machine>,
     audio: Res<GameAudio>,
 ) {
-    for (machine, machine_entity) in q_new_operation.iter() {
-        let sound_handle = match machine.recipe_id.as_str() {
-            "rotisserie" => audio.rotisserie.clone(),
-            "wok" => audio.wok.clone(),
-            _ => continue,
-        };
+    let machine_entity = trigger.target();
+    let Ok(machine) = q_machines.get(machine_entity) else {
+        return;
+    };
 
-        // Spawn sound and store its entity on the machine
-        let sound_entity = commands
-            .spawn(
-                SamplePlayer::new(sound_handle)
-                    .looping()
-                    .with_volume(Volume::Linear(0.3)),
-            )
-            .id();
-        commands
-            .entity(machine_entity)
-            .insert(PlayingAudio(sound_entity));
-    }
+    let sound_handle = match machine.recipe_id.as_str() {
+        "rotisserie" => audio.rotisserie.clone(),
+        "wok" => audio.wok.clone(),
+        _ => return,
+    };
+
+    // Spawn sound and store its entity on the machine
+    let sound_entity = commands
+        .spawn(
+            SamplePlayer::new(sound_handle)
+                .looping()
+                .with_volume(Volume::Linear(0.3)),
+        )
+        .id();
+    commands
+        .entity(machine_entity)
+        .insert(PlayingAudio(sound_entity));
 }
 
 /// Stop audio when machines finish operating
 fn stop_machine_audio(
+    trigger: Trigger<OnRemove, OperationTimer>,
     mut commands: Commands,
-    q_finished_machines: Query<
-        (Entity, &PlayingAudio),
-        (With<Machine>, Without<OperationTimer>),
-    >,
+    q_playing_audio: Query<&PlayingAudio>,
 ) {
-    for (machine_entity, playing_audio) in q_finished_machines.iter()
-    {
-        commands.entity(playing_audio.0).despawn();
-        commands.entity(machine_entity).remove::<PlayingAudio>();
-    }
+    let machine_entity = trigger.target();
+    let Ok(playing_audio) = q_playing_audio.get(machine_entity)
+    else {
+        return;
+    };
+
+    commands.entity(playing_audio.0).despawn();
+    commands.entity(machine_entity).remove::<PlayingAudio>();
 }
 
 /// Component that stores the entity ID of the playing audio
