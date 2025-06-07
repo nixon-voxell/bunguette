@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::enemy::{Enemy, IsEnemy, Path};
 use crate::physics::GameLayer;
+use crate::player::player_attack::AttackCooldown;
 
 use super::Projectile;
 
@@ -23,6 +24,7 @@ impl Plugin for TowerAttackPlugin {
                     .chain(),
                 handle_projectile_collisions,
                 projectile_movement,
+                despawn_on_death,
             ),
         );
 
@@ -150,31 +152,26 @@ fn tower_rotation(
 /// Shoot at current target
 fn tower_shooting(
     mut commands: Commands,
-    q_towers: Query<(
-        &Transform,
-        &GlobalTransform,
-        &Tower,
-        &Target,
-        Entity,
-    )>,
-    mut q_cooldowns: Query<&mut TowerCooldown>,
+    mut q_towers: Query<
+        (
+            &Transform,
+            &GlobalTransform,
+            &Tower,
+            &mut AttackCooldown,
+            &Target,
+        ),
+        Without<Enemy>,
+    >,
     q_enemies: Query<&GlobalTransform, With<Enemy>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    time: Res<Time>,
 ) -> Result {
     // Minimum facing accuracy to fire.
     const MIN_FACING_ACCURACY: f32 = 0.9;
 
-    for (transform, global_transform, tower, target, tower_entity) in
-        q_towers.iter()
+    for (transform, global_transform, tower, mut cooldown, target) in
+        q_towers.iter_mut()
     {
-        let Ok(mut cooldown) = q_cooldowns.get_mut(tower_entity)
-        else {
-            continue;
-        };
-
-        cooldown.0 -= time.delta_secs();
         if cooldown.0 > 0.0 {
             continue;
         }
@@ -254,14 +251,21 @@ fn handle_projectile_collisions(
 
             if let Ok(mut health) = q_healths.get_mut(enemy_entity) {
                 health.0 -= projectile.damage;
-
-                if health.0 <= 0.0 {
-                    commands.entity(enemy_entity).despawn();
-                }
             }
 
             // Despawn projectile after hit
             commands.entity(projectile_entity).despawn();
+        }
+    }
+}
+
+fn despawn_on_death(
+    mut commands: Commands,
+    q_healths: Query<(&Health, Entity), Changed<Health>>,
+) {
+    for (health, entity) in q_healths.iter() {
+        if health.0 <= 0.0 {
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -296,18 +300,20 @@ fn projectile_movement(
 /// Tower component with stats only.
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
-#[require(TowerCooldown)]
+#[require(
+    AttackCooldown,
+    CollisionLayers::new(GameLayer::Tower, {
+        let mut layer = LayerMask::ALL;
+        layer.remove(GameLayer::Enemy);
+        layer
+    })
+)]
 pub struct Tower {
     pub range: f32,
     pub damage: f32,
     pub attack_cooldown: f32,
     pub projectile_speed: f32,
 }
-
-/// Cooldown component for towers
-/// Tracks remaining time before the tower can fire again
-#[derive(Component, Deref, DerefMut, Default, Debug)]
-pub struct TowerCooldown(f32);
 
 /// Health component for entities that can take damage
 #[derive(Reflect, Debug)]

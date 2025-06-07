@@ -93,6 +93,17 @@ fn on_freed(
 pub struct TileMap(Vec<Option<TileMeta>>);
 
 impl TileMap {
+    pub const KNIGHT: &[IVec2] = &[
+        // Top.
+        IVec2::new(0, 1),
+        // Bottom.
+        IVec2::new(0, -1),
+        // Left.
+        IVec2::new(-1, 0),
+        // Right.
+        IVec2::new(1, 0),
+    ];
+
     pub fn within_map_range(coordinate: &IVec2) -> bool {
         const MAP_SIZE: i32 = HALF_MAP_SIZE as i32 * 2;
 
@@ -158,7 +169,7 @@ impl TileMap {
         start_translation: &Vec3,
         end_translation: &Vec3,
         to_tower: bool,
-    ) -> Option<Vec<Vec2>> {
+    ) -> Option<Vec<IVec2>> {
         let start =
             TileMap::translation_to_tile_coord(start_translation)?
                 .as_ivec2();
@@ -166,79 +177,66 @@ impl TileMap {
             TileMap::translation_to_tile_coord(end_translation)?
                 .as_ivec2();
 
-        println!("{start}, {end}");
-
         Some(
             astar(
                 &start,
-                |&IVec2 { x, y }| {
-                    [
-                        // Top.
-                        IVec2::new(x, y + 1),
-                        // Bottom.
-                        IVec2::new(x, y - 1),
-                        // Left.
-                        IVec2::new(x - 1, y),
-                        // Right.
-                        IVec2::new(x + 1, y),
-                    ]
-                    .into_iter()
-                    .filter(|coord| {
-                        // Must be a valid coordinate.
-                        if TileMap::within_map_range(coord) == false {
-                            return false;
-                        }
-                        let index = TileMap::tile_coord_to_tile_idx(
-                            &coord.as_uvec2(),
-                        );
-                        let tile_meta = self[index];
-
-                        // Must not be occupied.
-                        tile_meta.is_some_and(|t| t.occupied == false)
-                    })
-                    .map(|p| (p, 1))
-                },
-                // Always find the closest to the target.
-                |potential| potential.distance_squared(end),
-                |&IVec2 { x, y }| {
-                    if to_tower {
-                        // The surroundings needs to have a tower.
-                        [
-                            // Top.
-                            IVec2::new(x, y + 1),
-                            // Bottom.
-                            IVec2::new(x, y - 1),
-                            // Left.
-                            IVec2::new(x - 1, y),
-                            // Right.
-                            IVec2::new(x + 1, y),
-                        ]
-                        .into_iter()
-                        .any(|coord| {
+                |&current| {
+                    TileMap::KNIGHT
+                        .iter()
+                        .map(move |m| current + m)
+                        .filter(|coord| {
                             // Must be a valid coordinate.
-                            if TileMap::within_map_range(&coord)
+                            if TileMap::within_map_range(coord)
                                 == false
                             {
                                 return false;
                             }
-
                             let index =
                                 TileMap::tile_coord_to_tile_idx(
                                     &coord.as_uvec2(),
                                 );
                             let tile_meta = self[index];
 
-                            // Allow pathfinding towards tower.
-                            tile_meta.is_some_and(|t| t.occupied)
+                            // Must not be occupied.
+                            tile_meta.is_some_and(|t| {
+                                t.occupied() == false
+                            })
                         })
+                        .map(|p| (p, 1))
+                },
+                // Always find the closest to the target.
+                |potential| potential.distance_squared(end),
+                |&current| {
+                    if to_tower {
+                        // The surroundings needs to have a tower.
+                        TileMap::KNIGHT
+                            .iter()
+                            .map(move |m| current + m)
+                            .any(|coord| {
+                                // Must be a valid coordinate.
+                                if TileMap::within_map_range(&coord)
+                                    == false
+                                {
+                                    return false;
+                                }
+
+                                let index =
+                                    TileMap::tile_coord_to_tile_idx(
+                                        &coord.as_uvec2(),
+                                    );
+                                let tile_meta = self[index];
+
+                                // Allow pathfinding towards tower.
+                                tile_meta
+                                    .is_some_and(|t| t.occupied())
+                            })
                     } else {
-                        IVec2::new(x, y) == end
+                        current == end
                     }
                 },
             )?
             .0
-            .iter()
-            .map(TileMap::tile_coord_to_world_space)
+            .into_iter()
             .collect(),
         )
     }
@@ -264,6 +262,14 @@ impl TileMeta {
             target,
             occupied: false,
         }
+    }
+
+    pub fn occupied(&self) -> bool {
+        self.occupied
+    }
+
+    pub fn target(&self) -> Entity {
+        self.target
     }
 }
 

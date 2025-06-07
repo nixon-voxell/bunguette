@@ -13,7 +13,7 @@ use crate::physics::GameLayer;
 use crate::player::{PlayerType, QueryPlayers};
 use crate::tile::{PlacedBy, PlacedOn, Tile};
 
-mod tower_attack;
+pub mod tower_attack;
 
 pub struct TowerPlugin;
 

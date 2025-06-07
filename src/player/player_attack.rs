@@ -2,8 +2,7 @@ use crate::action::{PlayerAction, TargetAction};
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
-use crate::character_controller::CharacterController;
-use crate::enemy::{Enemy, IsEnemy};
+use crate::enemy::IsEnemy;
 use crate::physics::GameLayer;
 use crate::player::PlayerType;
 use crate::tower::Projectile;
@@ -21,7 +20,7 @@ impl Plugin for PlayerAttackPlugin {
 }
 
 fn update_cooldowns(
-    mut q_cooldowns: Query<&mut PlayerAttackCooldown>,
+    mut q_cooldowns: Query<&mut AttackCooldown>,
     time: Res<Time>,
 ) {
     for mut cooldown in q_cooldowns.iter_mut() {
@@ -31,16 +30,13 @@ fn update_cooldowns(
 
 fn player_shooting(
     mut commands: Commands,
-    mut q_players: Query<
-        (
-            &GlobalTransform,
-            &PlayerType,
-            &PlayerWeapon,
-            &TargetAction,
-            &mut PlayerAttackCooldown,
-        ),
-        With<CharacterController>,
-    >,
+    mut q_player_weapons: Query<(
+        &GlobalTransform,
+        &PlayerType,
+        &PlayerWeapon,
+        &TargetAction,
+        &mut AttackCooldown,
+    )>,
     q_cameras: QueryCameras<&GlobalTransform>,
     q_actions: Query<&ActionState<PlayerAction>>,
     q_enemies: Query<&GlobalTransform, With<IsEnemy>>,
@@ -54,7 +50,7 @@ fn player_shooting(
         weapon,
         target_action,
         mut cooldown,
-    ) in q_players.iter_mut()
+    ) in q_player_weapons.iter_mut()
     {
         // Check cooldown
         if cooldown.0 > 0.0 {
@@ -64,7 +60,7 @@ fn player_shooting(
         let Ok(action) = q_actions.get(target_action.get()) else {
             continue;
         };
-        if !action.just_pressed(&PlayerAction::Attack) {
+        if !action.pressed(&PlayerAction::Attack) {
             continue;
         }
 
@@ -145,7 +141,7 @@ fn player_shooting(
 /// Player weapon component with configurable stats.
 #[derive(Component, Reflect, Debug)]
 #[reflect(Component)]
-#[require(PlayerAttackCooldown)]
+#[require(AttackCooldown)]
 pub struct PlayerWeapon {
     pub damage: f32,
     pub attack_cooldown: f32,
@@ -155,4 +151,4 @@ pub struct PlayerWeapon {
 
 /// Player attack cooldown.
 #[derive(Component, Deref, DerefMut, Debug, Default)]
-pub struct PlayerAttackCooldown(f32);
+pub struct AttackCooldown(pub f32);

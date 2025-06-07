@@ -73,6 +73,8 @@ fn obstacle_snap_front(
             GameLayer::Player,
             GameLayer::Enemy,
             GameLayer::InventoryItem,
+            GameLayer::Tower,
+            GameLayer::Projectile,
         ]);
 
         // Exclude the character's own entity from the raycast
