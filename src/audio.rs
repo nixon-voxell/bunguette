@@ -12,6 +12,7 @@ impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(SeedlingPlugin::default())
             .init_resource::<GameAudio>()
+            .add_systems(Startup, start_background_music)
             .add_observer(start_machine_audio)
             .add_observer(stop_machine_audio)
             .add_observer(setup_player_audio_listener);
@@ -24,6 +25,8 @@ pub struct GameAudio {
     // Machine sounds
     pub rotisserie: Handle<Sample>,
     pub wok: Handle<Sample>,
+    // Background music
+    pub background_music: Handle<Sample>,
 }
 
 impl FromWorld for GameAudio {
@@ -33,8 +36,22 @@ impl FromWorld for GameAudio {
             rotisserie: asset_server
                 .load("audios/machine/rotisserie.ogg"),
             wok: asset_server.load("audios/machine/wok.ogg"),
+            background_music: asset_server
+                .load("audios/music/bgm_placeholder.ogg"),
         }
     }
+}
+
+/// Start background music when the game starts
+fn start_background_music(
+    mut commands: Commands,
+    audio: Res<GameAudio>,
+) {
+    commands.spawn((SamplePlayer::new(
+        audio.background_music.clone(),
+    )
+    .looping()
+    .with_volume(Volume::Linear(0.2)),));
 }
 
 /// Set up the audio listener for player entities
