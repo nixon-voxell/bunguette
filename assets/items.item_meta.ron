@@ -3,7 +3,7 @@
         "corn": (
             icon_path: "icons/corn.png",
             prefab_name: "corn",
-            max_stack_size: 10,
+            max_stack_size: 30,
             item_type: ingredient,
         ),
         "gun_tower": (

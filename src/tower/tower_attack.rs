@@ -206,7 +206,6 @@ fn tower_shooting(
                 ..default()
             })),
             Transform::from_translation(projectile_start),
-            Collider::sphere(0.1),
             Projectile {
                 velocity: direction * tower.projectile_speed,
                 damage: tower.damage,
