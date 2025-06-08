@@ -2,9 +2,7 @@ use bevy::prelude::*;
 use bevy_seedling::prelude::*;
 use bevy_seedling::sample::Sample;
 
-use crate::character_controller::CharacterController;
 use crate::machine::{Machine, OperationTimer};
-use crate::player::PlayerType;
 use crate::ui::Screen;
 
 pub(super) struct AudioPlugin;
@@ -19,47 +17,7 @@ impl Plugin for AudioPlugin {
                 start_game_music,
             )
             .add_observer(start_machine_audio)
-            .add_observer(stop_machine_audio)
-            .add_observer(setup_player_audio_listener);
-    }
-}
-
-/// Resource containing all game audio handles
-#[derive(Resource)]
-pub struct GameAudio {
-    // Machine sounds
-    pub rotisserie: Handle<Sample>,
-    pub wok: Handle<Sample>,
-    // Background music
-    pub menu_music: Handle<Sample>,
-    pub game_music: Handle<Sample>,
-}
-
-impl FromWorld for GameAudio {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-        Self {
-            rotisserie: asset_server
-                .load("audios/machine/rotisserie.ogg"),
-            wok: asset_server.load("audios/machine/wok.ogg"),
-            menu_music: asset_server
-                .load("audios/music/menu_bgm.ogg"),
-            game_music: asset_server
-                .load("audios/music/game_bgm.ogg"),
-        }
-    }
-}
-
-/// Set up the audio listener for player entities
-fn setup_player_audio_listener(
-    trigger: Trigger<OnAdd, PlayerType>,
-    mut commands: Commands,
-    q_characters: Query<(), With<CharacterController>>,
-) {
-    let entity = trigger.target();
-
-    if q_characters.get(entity).is_ok() {
-        commands.entity(entity).insert(SpatialListener3D);
+            .add_observer(stop_machine_audio);
     }
 }
 
@@ -144,3 +102,29 @@ fn stop_machine_audio(
 /// Component that stores the entity ID of the playing audio
 #[derive(Component)]
 struct PlayingAudio(Entity);
+
+/// Resource containing all game audio handles
+#[derive(Resource)]
+pub struct GameAudio {
+    // Machine sounds
+    pub rotisserie: Handle<Sample>,
+    pub wok: Handle<Sample>,
+    // Background music
+    pub menu_music: Handle<Sample>,
+    pub game_music: Handle<Sample>,
+}
+
+impl FromWorld for GameAudio {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+        Self {
+            rotisserie: asset_server
+                .load("audios/machine/rotisserie.ogg"),
+            wok: asset_server.load("audios/machine/wok.ogg"),
+            menu_music: asset_server
+                .load("audios/music/menu_bgm.ogg"),
+            game_music: asset_server
+                .load("audios/music/game_bgm.ogg"),
+        }
+    }
+}

@@ -1,5 +1,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_seedling::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
@@ -421,7 +422,8 @@ pub struct IsMoving(pub bool);
     Inventory,
     TransformInterpolation,
     CollisionEventsEnabled,
-    CollisionLayers::new(GameLayer::Player, LayerMask::ALL,)
+    CollisionLayers::new(GameLayer::Player, LayerMask::ALL,),
+    SpatialListener3D
 )]
 #[reflect(Component, Default)]
 pub struct CharacterController {
