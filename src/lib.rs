@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 mod action;
 mod asset_pipeline;
+mod audio;
 mod camera_controller;
 mod character_controller;
 mod enemy;
@@ -11,7 +12,7 @@ mod machine;
 mod physics;
 mod player;
 mod tile;
-mod turret;
+mod tower;
 mod ui;
 mod util;
 
@@ -25,6 +26,7 @@ impl Plugin for AppPlugin {
         ))
         .add_plugins((
             action::ActionPlugin,
+            audio::AudioPlugin,
             ui::UiPlugin,
             physics::PhysicsPlugin,
             asset_pipeline::AssetPipelinePlugin,
@@ -34,7 +36,7 @@ impl Plugin for AppPlugin {
             inventory::InventoryPlugin,
             player::PlayerPlugin,
             machine::MachinePlugin,
-            turret::TurretPlugin,
+            tower::TowerPlugin,
             tile::TilePlugin,
             enemy::EnemyPlugin,
         ));

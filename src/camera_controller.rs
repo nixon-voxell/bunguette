@@ -10,6 +10,7 @@ use crate::action::{PlayerAction, RequireAction, TargetAction};
 use crate::asset_pipeline::CurrentScene;
 use crate::physics::GameLayer;
 use crate::player::PlayerType;
+use crate::tower::Projectile;
 
 pub mod split_screen;
 
@@ -21,10 +22,7 @@ pub(super) struct CameraControllerPlugin;
 
 impl Plugin for CameraControllerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            split_screen::SplitScreenPlugin,
-            // obstacle_visbility::ObstacleVisibilityPlugin,
-        ));
+        app.add_plugins(split_screen::SplitScreenPlugin);
 
         app.add_systems(Update, setup_third_person_camera)
             .add_systems(
@@ -54,6 +52,7 @@ fn obstacle_snap_front(
     >,
     mut q_cameras: QueryCameras<&mut Transform, With<CameraSnap>>,
     spatial_query: SpatialQuery,
+    q_is_projectile: Query<(), With<Projectile>>,
     cast_shape: Local<ViewCastShape>,
 ) -> Result {
     for (camera_type, target_transform) in q_camera_targets.iter() {
@@ -72,7 +71,13 @@ fn obstacle_snap_front(
         };
 
         let mut mask = LayerMask::ALL;
-        mask.remove(GameLayer::Player);
+        mask.remove([
+            GameLayer::Player,
+            GameLayer::Enemy,
+            GameLayer::InventoryItem,
+            GameLayer::Tower,
+            GameLayer::Projectile,
+        ]);
 
         // Exclude the character's own entity from the raycast
         let filter = SpatialQueryFilter::default().with_mask(mask);
@@ -89,6 +94,10 @@ fn obstacle_snap_front(
             &config,
             &filter,
         ) {
+            // Prevent colliding with projectile.
+            if q_is_projectile.contains(hit.entity) {
+                continue;
+            }
             camera_transform.translation = hit.point1;
         }
     }

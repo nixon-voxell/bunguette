@@ -1,5 +1,6 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use bevy_seedling::prelude::*;
 use leafwing_input_manager::prelude::*;
 
 use crate::action::{PlayerAction, RequireAction, TargetAction};
@@ -35,8 +36,7 @@ impl Plugin for CharacterControllerPlugin {
             PhysicsSchedule,
             kinematic_controller_collisions
                 .in_set(NarrowPhaseSet::Last),
-        )
-        .add_observer(setup_character_collision);
+        );
 
         app.register_type::<CharacterController>();
     }
@@ -407,20 +407,6 @@ fn kinematic_controller_collisions(
     }
 }
 
-/// Observer to setup collision layer when
-/// [`CharacterController`] is added.
-fn setup_character_collision(
-    trigger: Trigger<OnAdd, CharacterController>,
-    mut commands: Commands,
-) {
-    commands
-        .entity(trigger.target())
-        .insert(CollisionLayers::new(
-            GameLayer::Player,
-            LayerMask::ALL,
-        ));
-}
-
 #[derive(Component, Deref, DerefMut, Default, PartialEq, Eq)]
 pub struct IsGrounded(pub bool);
 
@@ -435,7 +421,9 @@ pub struct IsMoving(pub bool);
     RequireAction,
     Inventory,
     TransformInterpolation,
-    CollisionEventsEnabled
+    CollisionEventsEnabled,
+    CollisionLayers::new(GameLayer::Player, LayerMask::ALL,),
+    SpatialListener3D
 )]
 #[reflect(Component, Default)]
 pub struct CharacterController {
