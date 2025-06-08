@@ -1,3 +1,4 @@
+use bevy::asset::load_internal_binary_asset;
 use bevy::color::palettes::tailwind::*;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
@@ -49,6 +50,15 @@ impl Plugin for UiPlugin {
                 OnEnter(Screen::GameOver),
                 set_cursor_grab_mode(CursorGrabMode::None),
             );
+
+        load_internal_binary_asset!(
+            app,
+            TextFont::default().font,
+            "../assets/fonts/Cherry_Bomb_One/CherryBombOne-Regular.ttf",
+            |bytes: &[u8], _path: String| {
+                Font::try_from_bytes(bytes.to_vec()).unwrap()
+            }
+        );
     }
 }
 

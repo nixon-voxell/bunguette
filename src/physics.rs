@@ -10,6 +10,7 @@ impl Plugin for PhysicsPlugin {
         app.add_plugins((
             PhysicsPlugins::default(),
             // PhysicsPickingPlugin,
+            #[cfg(feature = "dev")]
             PhysicsDebugPlugin::default(),
         ));
 
