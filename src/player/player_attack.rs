@@ -1,5 +1,5 @@
 use crate::action::{PlayerAction, TargetAction};
-use crate::asset_pipeline::{PrefabAssets, PrefabName};
+use crate::asset_pipeline::{AssetState, PrefabAssets, PrefabName};
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
@@ -15,8 +15,10 @@ pub(super) struct PlayerAttackPlugin;
 
 impl Plugin for PlayerAttackPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, update_cooldowns)
-            .add_systems(FixedUpdate, player_shooting);
+        app.add_systems(Update, update_cooldowns).add_systems(
+            FixedUpdate,
+            player_shooting.run_if(in_state(AssetState::Loaded)),
+        );
         app.register_type::<PlayerWeapon>();
     }
 }
