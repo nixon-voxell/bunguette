@@ -7,6 +7,7 @@ use widgets::button::{ButtonBackground, LabelButton};
 
 use crate::asset_pipeline::SceneAssetsLoader;
 
+mod health_bar;
 mod inventory_ui;
 pub mod widgets;
 pub mod world_space;
@@ -19,6 +20,7 @@ impl Plugin for UiPlugin {
             world_space::WorldSpaceUiPlugin,
             widgets::WidgetsPlugin,
             inventory_ui::InventoryUiPlugin,
+            health_bar::HealthBarPlugin,
         ));
 
         app.init_state::<Screen>()
