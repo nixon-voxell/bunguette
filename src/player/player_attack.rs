@@ -45,7 +45,7 @@ fn player_shooting(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     for (
-        player_transform,
+        weapon_transform,
         player_type,
         weapon,
         target_action,
@@ -75,14 +75,13 @@ fn player_shooting(
         let camera_position = camera_transform.translation();
         let camera_forward = camera_transform.forward();
 
-        // Spawn projectile from player
-        let projectile_start =
-            player_transform.translation() + Vec3::Y * 0.65;
+        // Spawn projectile from weapon.
+        let projectile_start = weapon_transform.translation();
 
-        // Get player's forward direction
-        let player_forward = player_transform.forward();
+        // Get weapon's forward direction
+        let weapon_forward = weapon_transform.forward();
 
-        // Perform a shape cast to detect enemies in front of the player
+        // Perform a shape cast to detect enemies in front of the weapon.
         let detection_shape = Collider::sphere(1.7);
         let shape_cast_config = ShapeCastConfig {
             max_distance: 50.0,
@@ -106,12 +105,12 @@ fn player_shooting(
                 (enemy_transform.translation() - projectile_start)
                     .normalize()
             } else {
-                // No enemy found, shoot in player's facing direction
-                *player_forward
+                // No enemy found, shoot in weapon's facing direction
+                *weapon_forward
             }
         } else {
             // No hit, shoot in player's facing direction
-            *player_forward
+            *weapon_forward
         };
 
         // Spawn projectile using weapon stats
@@ -123,7 +122,7 @@ fn player_shooting(
                 ..default()
             })),
             Transform::from_translation(
-                projectile_start + player_transform.forward() * 0.5,
+                projectile_start + weapon_transform.forward() * 0.5,
             ),
             Collider::sphere(0.08),
             Projectile {

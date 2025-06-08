@@ -94,7 +94,7 @@ fn spawn_enemy(
                 .ok_or("Can't find mouse prefab!")?
                 .default_scene
                 .clone()
-                .ok_or("Tower prefab have a default scene.")?,
+                .ok_or("Mouse prefab should have a default scene.")?,
         ),
         transform.compute_transform(),
         ChildOf(current_scene),
