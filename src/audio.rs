@@ -16,28 +16,39 @@ impl Plugin for AudioPlugin {
                 OnEnter(Screen::EnterLevel),
                 start_game_music,
             )
+            .add_systems(OnEnter(Screen::GameOver), game_over_music)
             .add_observer(start_machine_audio)
             .add_observer(stop_machine_audio);
     }
 }
 
-/// Start menu background music
+/// Start menu background music.
 fn start_menu_music(mut commands: Commands, audio: Res<GameAudio>) {
     commands.spawn((
         SamplePlayer::new(audio.menu_music.clone())
             .looping()
-            .with_volume(Volume::Linear(0.3)),
+            .with_volume(Volume::Linear(0.4)),
         StateScoped(Screen::Menu),
     ));
 }
 
-/// Start in-game background music
+/// Start in-game background music.
 fn start_game_music(mut commands: Commands, audio: Res<GameAudio>) {
     commands.spawn((
         SamplePlayer::new(audio.game_music.clone())
             .looping()
             .with_volume(Volume::Linear(0.3)),
         StateScoped(Screen::EnterLevel),
+    ));
+}
+
+/// Start game over background music.
+fn game_over_music(mut commands: Commands, audio: Res<GameAudio>) {
+    commands.spawn((
+        SamplePlayer::new(audio.game_over_music.clone())
+            .looping()
+            .with_volume(Volume::Linear(0.4)),
+        StateScoped(Screen::GameOver),
     ));
 }
 
@@ -71,10 +82,11 @@ fn start_machine_audio(
                 machine_transform.translation(),
             ),
             SpatialBasicNode {
-                panning_threshold: 0.2,
+                panning_threshold: 0.4,
+                volume: Volume::Linear(2.0),
                 ..Default::default()
             },
-            SpatialScale(Vec3::splat(0.4)),
+            SpatialScale(Vec3::splat(0.1)),
         ))
         .id();
 
@@ -112,6 +124,7 @@ pub struct GameAudio {
     // Background music
     pub menu_music: Handle<Sample>,
     pub game_music: Handle<Sample>,
+    pub game_over_music: Handle<Sample>,
 }
 
 impl FromWorld for GameAudio {
@@ -125,6 +138,8 @@ impl FromWorld for GameAudio {
                 .load("audios/music/menu_bgm.ogg"),
             game_music: asset_server
                 .load("audios/music/game_bgm.ogg"),
+            game_over_music: asset_server
+                .load("audios/music/game_over.ogg"),
         }
     }
 }

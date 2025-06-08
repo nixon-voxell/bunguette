@@ -5,9 +5,11 @@ use bevy::ui::FocusPolicy;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 use widgets::button::{ButtonBackground, LabelButton};
 
-use crate::asset_pipeline::SceneAssetsLoader;
+use crate::asset_pipeline::{AssetState, SceneAssetsLoader};
 
+mod game_over_ui;
 mod inventory_ui;
+mod player_mark_ui;
 pub mod widgets;
 pub mod world_space;
 
@@ -19,13 +21,16 @@ impl Plugin for UiPlugin {
             world_space::WorldSpaceUiPlugin,
             widgets::WidgetsPlugin,
             inventory_ui::InventoryUiPlugin,
+            player_mark_ui::PlayerMarkUiPlugin,
+            game_over_ui::GameOverUiPlugin,
         ));
 
-        app.init_state::<Screen>()
+        app.add_sub_state::<Screen>()
             .add_systems(
                 OnEnter(Screen::Menu),
                 (
                     setup_menu,
+                    load_default_scene,
                     set_cursor_grab_mode(CursorGrabMode::None),
                 ),
             )
@@ -35,6 +40,10 @@ impl Plugin for UiPlugin {
                     load_level1,
                     set_cursor_grab_mode(CursorGrabMode::Locked),
                 ),
+            )
+            .add_systems(
+                OnEnter(Screen::GameOver),
+                set_cursor_grab_mode(CursorGrabMode::None),
             );
     }
 }
@@ -55,6 +64,10 @@ fn set_cursor_grab_mode(
             CursorGrabMode::Locked => false,
         };
     }
+}
+
+fn load_default_scene(mut scenes: SceneAssetsLoader) -> Result {
+    scenes.load_default_scene()
 }
 
 fn load_level1(mut scenes: SceneAssetsLoader) -> Result {
@@ -86,7 +99,7 @@ fn setup_menu(mut commands: Commands) {
             BorderRadius::all(Val::VMin(4.0)),
             Children::spawn((
                 Spawn((
-                    Text::new("Recipe"),
+                    Text::new("Bunguette"),
                     TextFont::from_font_size(64.0),
                     TextColor(ORANGE_600.into()),
                     TextShadow::default(),
@@ -135,8 +148,9 @@ fn exit_on_click(
     exit.write(AppExit::Success);
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, SubStates)]
 #[states(scoped_entities)]
+#[source(AssetState = AssetState::Loaded)]
 pub enum Screen {
     #[default]
     Menu,

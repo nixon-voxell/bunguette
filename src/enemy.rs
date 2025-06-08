@@ -6,6 +6,7 @@ use crate::player::player_attack::AttackCooldown;
 use crate::player::player_mark::PlayerMark;
 use crate::tile::{PlacedBy, TileMap};
 use crate::tower::tower_attack::{Health, Tower};
+use crate::ui::Screen;
 use crate::util::PropagateComponentAppExt;
 
 mod animation;
@@ -31,7 +32,8 @@ impl Plugin for EnemyPlugin {
                 (
                     rotate_to_velocity,
                     (target_reach_respond, attack_tower).chain(),
-                ),
+                )
+                    .run_if(in_state(Screen::EnterLevel)),
             )
             .add_observer(on_path_changed);
 
@@ -153,9 +155,12 @@ fn target_reach_respond(
     for (target_type, path, entity) in q_enemies.iter() {
         if *target_type != TargetType::Tower {
             // Decrease mark.
-            player_mark.0 = player_mark.saturating_sub(0);
+            player_mark.0 = player_mark.saturating_sub(1);
 
-            info!("Enemy reached destination, mark decreased!");
+            info!(
+                "Enemy reached destination, mark decreased {}!",
+                player_mark.0
+            );
             commands.entity(entity).despawn();
             continue;
         }
