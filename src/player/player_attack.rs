@@ -1,4 +1,5 @@
 use crate::action::{PlayerAction, TargetAction};
+use crate::asset_pipeline::{PrefabAssets, PrefabName};
 use crate::camera_controller::split_screen::{
     CameraType, QueryCameras,
 };
@@ -42,9 +43,9 @@ fn player_shooting(
     q_actions: Query<&ActionState<PlayerAction>>,
     q_enemies: Query<&GlobalTransform, With<IsEnemy>>,
     spatial_query: SpatialQuery,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
+    prefabs: Res<PrefabAssets>,
+    gltfs: Res<Assets<Gltf>>,
+) -> Result {
     for (
         weapon_transform,
         player_type,
@@ -65,9 +66,9 @@ fn player_shooting(
             continue;
         }
 
-        let camera_type = match player_type {
-            PlayerType::A => CameraType::A,
-            PlayerType::B => CameraType::B,
+        let (camera_type, weapon_name) = match player_type {
+            PlayerType::A => (CameraType::A, "polo_bun_small"),
+            PlayerType::B => (CameraType::B, "baguette_small"),
         };
         let Ok(camera_transform) = q_cameras.get(camera_type) else {
             continue;
@@ -114,28 +115,37 @@ fn player_shooting(
             *weapon_forward
         };
 
+        let handle = prefabs
+            .get_gltf(PrefabName::FileName(weapon_name), &gltfs)
+            .ok_or(format!("Can't find {weapon_name} prefab!"))?
+            .default_scene
+            .clone()
+            .ok_or(
+                "{weapon_name} prefab should have a default scene.",
+            )?;
+
         // Spawn projectile using weapon stats
         commands.spawn((
-            Mesh3d(meshes.add(Sphere::new(0.06))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, 0.8, 0.2),
-                emissive: LinearRgba::rgb(2.0, 1.5, 0.5),
-                ..default()
-            })),
             Transform::from_translation(
                 projectile_start + weapon_transform.forward() * 0.5,
             ),
-            Collider::sphere(0.08),
             Projectile {
                 velocity: target_direction * weapon.projectile_speed,
                 damage: weapon.damage,
                 lifetime: weapon.projectile_lifetime,
             },
+            Visibility::Inherited,
+            Children::spawn(Spawn((
+                SceneRoot(handle),
+                Transform::from_scale(Vec3::splat(0.2)),
+            ))),
         ));
 
         // Reset cooldown
         cooldown.0 = weapon.attack_cooldown;
     }
+
+    Ok(())
 }
 
 /// Player weapon component with configurable stats.

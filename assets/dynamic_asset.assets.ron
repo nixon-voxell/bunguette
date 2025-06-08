@@ -10,7 +10,9 @@
             "prefabs/gun_tower.glb",
             "prefabs/cannon_tower.glb",
             "prefabs/mouse_a.glb",
-            "prefabs/corn.glb"
+            "prefabs/corn.glb",
+            "prefabs/polo_bun_small.glb",
+            "prefabs/baguette_small.glb",
         ],
     ),
 
