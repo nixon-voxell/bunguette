@@ -5,6 +5,7 @@ use bevy_seedling::sample::Sample;
 use crate::character_controller::CharacterController;
 use crate::machine::{Machine, OperationTimer};
 use crate::player::PlayerType;
+use crate::ui::Screen;
 
 pub(super) struct AudioPlugin;
 
@@ -12,7 +13,11 @@ impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(SeedlingPlugin::default())
             .init_resource::<GameAudio>()
-            .add_systems(Startup, start_background_music)
+            .add_systems(OnEnter(Screen::Menu), start_menu_music)
+            .add_systems(
+                OnEnter(Screen::EnterLevel),
+                start_game_music,
+            )
             .add_observer(start_machine_audio)
             .add_observer(stop_machine_audio)
             .add_observer(setup_player_audio_listener);
@@ -26,7 +31,8 @@ pub struct GameAudio {
     pub rotisserie: Handle<Sample>,
     pub wok: Handle<Sample>,
     // Background music
-    pub background_music: Handle<Sample>,
+    pub menu_music: Handle<Sample>,
+    pub game_music: Handle<Sample>,
 }
 
 impl FromWorld for GameAudio {
@@ -36,22 +42,12 @@ impl FromWorld for GameAudio {
             rotisserie: asset_server
                 .load("audios/machine/rotisserie.ogg"),
             wok: asset_server.load("audios/machine/wok.ogg"),
-            background_music: asset_server
-                .load("audios/music/bgm_placeholder.ogg"),
+            menu_music: asset_server
+                .load("audios/music/menu_bgm.ogg"),
+            game_music: asset_server
+                .load("audios/music/game_bgm.ogg"),
         }
     }
-}
-
-/// Start background music when the game starts
-fn start_background_music(
-    mut commands: Commands,
-    audio: Res<GameAudio>,
-) {
-    commands.spawn((SamplePlayer::new(
-        audio.background_music.clone(),
-    )
-    .looping()
-    .with_volume(Volume::Linear(0.2)),));
 }
 
 /// Set up the audio listener for player entities
@@ -65,6 +61,26 @@ fn setup_player_audio_listener(
     if q_characters.get(entity).is_ok() {
         commands.entity(entity).insert(SpatialListener3D);
     }
+}
+
+/// Start menu background music
+fn start_menu_music(mut commands: Commands, audio: Res<GameAudio>) {
+    commands.spawn((
+        SamplePlayer::new(audio.menu_music.clone())
+            .looping()
+            .with_volume(Volume::Linear(0.3)),
+        StateScoped(Screen::Menu),
+    ));
+}
+
+/// Start in-game background music
+fn start_game_music(mut commands: Commands, audio: Res<GameAudio>) {
+    commands.spawn((
+        SamplePlayer::new(audio.game_music.clone())
+            .looping()
+            .with_volume(Volume::Linear(0.3)),
+        StateScoped(Screen::EnterLevel),
+    ));
 }
 
 /// Start audio when machines start operating
@@ -92,7 +108,7 @@ fn start_machine_audio(
         .spawn((
             SamplePlayer::new(sound_handle)
                 .looping()
-                .with_volume(Volume::Linear(0.2)),
+                .with_volume(Volume::Linear(0.25)),
             GlobalTransform::from_translation(
                 machine_transform.translation(),
             ),
