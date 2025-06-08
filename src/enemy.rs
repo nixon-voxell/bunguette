@@ -152,7 +152,9 @@ fn target_reach_respond(
 ) {
     for (target_type, path, entity) in q_enemies.iter() {
         if *target_type != TargetType::Tower {
+            // Decrease mark.
             player_mark.0 = player_mark.saturating_sub(0);
+
             info!("Enemy reached destination, mark decreased!");
             commands.entity(entity).despawn();
             continue;
