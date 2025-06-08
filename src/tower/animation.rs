@@ -9,7 +9,7 @@ use crate::asset_pipeline::animation_pipeline::{
 use crate::asset_pipeline::{AssetState, PrefabAssets, PrefabName};
 
 use super::TowerPrefabName;
-use super::tower_attack::{Target, Tower};
+use super::tower_attack::Tower;
 
 pub(super) struct TowerAnimationPlugin;
 

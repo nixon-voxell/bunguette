@@ -231,7 +231,8 @@ fn tower_shooting(
             Visibility::Inherited,
             Children::spawn(Spawn((
                 SceneRoot(handle),
-                Transform::from_scale(Vec3::splat(0.2)),
+                Transform::from_scale(Vec3::splat(0.2))
+                    .looking_to(direction, Vec3::Y),
             ))),
         ));
 
