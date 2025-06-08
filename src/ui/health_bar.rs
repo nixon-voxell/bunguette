@@ -12,8 +12,10 @@ pub struct HealthBarPlugin;
 
 impl Plugin for HealthBarPlugin {
     fn build(&self, app: &mut App) {
-        app.add_observer(spawn_health_bar)
-            .add_systems(Update, update_health_bars);
+        app.add_observer(spawn_health_bar).add_systems(
+            Update,
+            (update_health_bars, update_health_bar_visibility),
+        );
     }
 }
 
@@ -108,6 +110,52 @@ fn update_health_bars(
             }
         }
     }
+}
+
+fn update_health_bar_visibility(
+    q_entities: Query<
+        (&GlobalTransform, &HasHealthBar),
+        With<Health>,
+    >,
+    mut q_health_bars: Query<&mut Visibility, With<WorldUi>>,
+    q_cameras: QueryCameras<&GlobalTransform>,
+) -> Result {
+    const MAX_DISTANCE_SQ: f32 = 15.0 * 15.0;
+
+    let camera_a_position =
+        q_cameras.get(CameraType::A)?.translation();
+    let camera_b_position =
+        q_cameras.get(CameraType::B)?.translation();
+
+    for (entity_transform, health_bars) in q_entities.iter() {
+        let entity_position = entity_transform.translation();
+
+        if let Ok(mut visibility) =
+            q_health_bars.get_mut(health_bars.camera_a)
+        {
+            let distance_sq =
+                camera_a_position.distance_squared(entity_position);
+            *visibility = if distance_sq > MAX_DISTANCE_SQ {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+        }
+
+        if let Ok(mut visibility) =
+            q_health_bars.get_mut(health_bars.camera_b)
+        {
+            let distance_sq =
+                camera_b_position.distance_squared(entity_position);
+            *visibility = if distance_sq > MAX_DISTANCE_SQ {
+                Visibility::Hidden
+            } else {
+                Visibility::Inherited
+            };
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Component)]
