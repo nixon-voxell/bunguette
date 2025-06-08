@@ -14,7 +14,8 @@ pub(super) struct PlayerAttackPlugin;
 
 impl Plugin for PlayerAttackPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (player_shooting, update_cooldowns));
+        app.add_systems(Update, update_cooldowns)
+            .add_systems(FixedUpdate, player_shooting);
         app.register_type::<PlayerWeapon>();
     }
 }

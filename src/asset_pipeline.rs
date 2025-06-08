@@ -12,30 +12,24 @@ impl Plugin for AssetPipelinePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(animation_pipeline::AnimationPipelinePlugin);
 
+        let loading_state = LoadingState::new(
+            AssetState::LoadingGltf,
+        )
+        .continue_to_state(AssetState::LoadingAnimation)
+        .with_dynamic_assets_file::<StandardDynamicAssetCollection>(
+            "dynamic_asset.assets.ron",
+        )
+        .load_collection::<PrefabAssets>()
+        .load_collection::<SceneAssets>();
+
         app.init_state::<AssetState>()
             .init_resource::<CurrentScene>()
-            .add_loading_state(
-                LoadingState::new(AssetState::LoadingGltf)
-                    .continue_to_state(AssetState::LoadingAnimation)
-                    .with_dynamic_assets_file::<StandardDynamicAssetCollection>(
-                        "dynamic_asset.assets.ron",
-                    )
-                    .load_collection::<PrefabAssets>()
-                    .load_collection::<SceneAssets>(),
-            )
-            .add_systems(
-                OnEnter(AssetState::Loaded),
-                load_default_scene,
-            );
+            .add_loading_state(loading_state);
 
         #[cfg(feature = "dev")]
         app.register_type::<SceneAssets>()
             .register_type::<PrefabAssets>();
     }
-}
-
-fn load_default_scene(mut scenes: SceneAssetsLoader) -> Result {
-    scenes.load_default_scene()
 }
 
 #[derive(SystemParam)]
