@@ -2,6 +2,7 @@ use bevy::color::palettes::tailwind::*;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
+use bevy::window::{CursorGrabMode, PrimaryWindow};
 use widgets::button::{ButtonBackground, LabelButton};
 
 use crate::asset_pipeline::SceneAssetsLoader;
@@ -21,8 +22,36 @@ impl Plugin for UiPlugin {
         ));
 
         app.init_state::<Screen>()
-            .add_systems(OnEnter(Screen::Menu), setup_menu)
-            .add_systems(OnEnter(Screen::EnterLevel), load_level1);
+            .add_systems(
+                OnEnter(Screen::Menu),
+                (
+                    setup_menu,
+                    set_cursor_grab_mode(CursorGrabMode::Locked),
+                ),
+            )
+            .add_systems(
+                OnEnter(Screen::EnterLevel),
+                (
+                    load_level1,
+                    set_cursor_grab_mode(CursorGrabMode::None),
+                ),
+            );
+    }
+}
+
+fn set_cursor_grab_mode(
+    grab_mode: CursorGrabMode,
+) -> impl Fn(Query<'_, '_, &mut Window, With<PrimaryWindow>>) -> Result
+{
+    move |mut q_windows: Query<
+        &mut Window,
+        With<PrimaryWindow>,
+    >|
+          -> Result {
+        let mut primary_window = q_windows.single_mut()?;
+        primary_window.cursor_options.grab_mode = grab_mode;
+
+        Ok(())
     }
 }
 
