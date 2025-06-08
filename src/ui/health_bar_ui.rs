@@ -8,9 +8,9 @@ use crate::enemy::Enemy;
 use crate::tower::tower_attack::{Health, MaxHealth};
 use crate::ui::world_space::WorldUi;
 
-pub struct HealthBarPlugin;
+pub struct HealthBarUiPlugin;
 
-impl Plugin for HealthBarPlugin {
+impl Plugin for HealthBarUiPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(spawn_health_bar).add_systems(
             Update,
