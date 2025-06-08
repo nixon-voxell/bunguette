@@ -10,6 +10,7 @@ use crate::asset_pipeline::{AssetState, SceneAssetsLoader};
 mod game_over_ui;
 mod inventory_ui;
 mod player_mark_ui;
+mod wave_countdown_ui;
 pub mod widgets;
 pub mod world_space;
 
@@ -23,6 +24,7 @@ impl Plugin for UiPlugin {
             inventory_ui::InventoryUiPlugin,
             player_mark_ui::PlayerMarkUiPlugin,
             game_over_ui::GameOverUiPlugin,
+            wave_countdown_ui::WaveCountdownUiPlugin,
         ));
 
         app.add_sub_state::<Screen>()
