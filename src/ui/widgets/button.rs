@@ -12,6 +12,8 @@ impl Plugin for ButtonPlugin {
 #[derive(Default)]
 pub struct LabelButton {
     pub background: ButtonBackground,
+    pub text_color: Color,
+    pub font_size: f32,
     pub label: String,
     pub node: Node,
 }
@@ -21,16 +23,15 @@ impl LabelButton {
         Self {
             label: label.into(),
             node: Node {
-                padding: UiRect::axes(Val::VMin(4.0), Val::VMin(2.0)),
-                border: UiRect::all(Val::VMin(0.5)),
-                margin: UiRect::all(Val::VMin(2.0)),
+                padding: UiRect::axes(Val::Px(50.0), Val::Px(12.0)),
+                margin: UiRect::all(Val::Px(10.0)),
                 ..default()
             },
             ..default()
         }
     }
 
-    pub fn with_bacground(
+    pub fn with_background(
         mut self,
         background: ButtonBackground,
     ) -> Self {
@@ -38,16 +39,26 @@ impl LabelButton {
         self
     }
 
+    pub fn with_text_color(
+        mut self,
+        text_color: impl Into<Color>,
+    ) -> Self {
+        self.text_color = text_color.into();
+        self
+    }
+
+    pub fn with_font_size(mut self, font_size: f32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
     pub fn build(self) -> impl Bundle {
         (
             self.node,
             self.background,
-            BorderRadius::all(Val::VMin(2.0)),
-            BorderColor(SKY_50.into()),
+            BorderRadius::all(Val::Percent(100.0)),
             Children::spawn(Spawn((
                 Node {
-                    // width: Val::Percent(100.0),
-                    // height: Val::Percent(100.0),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     ..default()
@@ -58,7 +69,8 @@ impl LabelButton {
                         JustifyText::Center,
                         LineBreak::WordBoundary,
                     ),
-                    TextColor(GRAY_900.into()),
+                    TextColor(self.text_color),
+                    TextFont::from_font_size(self.font_size),
                 ))),
             ))),
         )

@@ -1,5 +1,4 @@
 use bevy::asset::load_internal_binary_asset;
-use bevy::color::palettes::tailwind::*;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
@@ -89,12 +88,19 @@ fn load_level1(mut scenes: SceneAssetsLoader) -> Result {
 }
 
 fn setup_menu(mut commands: Commands) {
+    const FONT_SIZE: f32 = 30.0;
+
+    let bg_color = Srgba::hex("BFB190").unwrap().with_alpha(0.4);
+    let font_color = Srgba::hex("342C24").unwrap();
+    let play_color = Srgba::hex("FFDE59").unwrap().with_alpha(0.45);
+    let exit_color = Srgba::hex("856850").unwrap().with_alpha(0.45);
+
     commands.spawn((
         StateScoped(Screen::Menu),
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
-            padding: UiRect::all(Val::VMin(10.0)),
+            padding: UiRect::all(Val::Px(40.0)),
             justify_content: JustifyContent::End,
             align_items: AlignItems::End,
             ..default()
@@ -103,28 +109,34 @@ fn setup_menu(mut commands: Commands) {
         Pickable::IGNORE,
         Children::spawn(Spawn((
             Node {
-                padding: UiRect::all(Val::VMin(6.0)),
-                justify_content: JustifyContent::SpaceAround,
-                align_items: AlignItems::Center,
                 flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                flex_grow: 0.0,
+                padding: UiRect::all(Val::Px(20.0)),
                 ..default()
             },
-            BackgroundColor(Color::BLACK.with_alpha(0.2)),
-            BorderRadius::all(Val::VMin(4.0)),
+            BackgroundColor(bg_color.into()),
+            BorderRadius::all(Val::Px(40.0)),
             Children::spawn((
                 Spawn((
+                    Node {
+                        padding: UiRect::all(Val::Px(10.0)),
+                        ..default()
+                    },
                     Text::new("Bunguette"),
-                    TextFont::from_font_size(64.0),
-                    TextColor(ORANGE_600.into()),
-                    TextShadow::default(),
+                    TextFont::from_font_size(FONT_SIZE * 1.5),
+                    TextColor(font_color.into()),
                 )),
-                SpawnWith(|parent: &mut ChildSpawner| {
+                SpawnWith(move |parent: &mut ChildSpawner| {
                     parent
                         .spawn(
-                            LabelButton::new("Play!")
-                                .with_bacground(
-                                    ButtonBackground::new(SKY_500),
+                            LabelButton::new("Play")
+                                .with_background(
+                                    ButtonBackground::new(play_color),
                                 )
+                                .with_text_color(font_color)
+                                .with_font_size(FONT_SIZE)
                                 .build(),
                         )
                         .observe(play_on_click);
@@ -133,10 +145,12 @@ fn setup_menu(mut commands: Commands) {
                     #[cfg(not(target_arch = "wasm32"))]
                     parent
                         .spawn(
-                            LabelButton::new("Exit..")
-                                .with_bacground(
-                                    ButtonBackground::new(RED_500),
+                            LabelButton::new("Exit")
+                                .with_background(
+                                    ButtonBackground::new(exit_color),
                                 )
+                                .with_text_color(font_color)
+                                .with_font_size(FONT_SIZE)
                                 .build(),
                         )
                         .observe(exit_on_click);

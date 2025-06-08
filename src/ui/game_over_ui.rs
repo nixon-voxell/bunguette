@@ -1,4 +1,3 @@
-use bevy::color::palettes::tailwind::*;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
@@ -24,6 +23,15 @@ fn spawn_game_over_ui(
     mut commands: Commands,
     player_mark: Res<PlayerMark>,
 ) {
+    const FONT_SIZE: f32 = 40.0;
+
+    let bg_color = Srgba::hex("BFB190").unwrap().with_alpha(0.4);
+    let red_color = Srgba::hex("FF5757").unwrap();
+    let green_color = Srgba::hex("C1FF72").unwrap();
+    let font_color = Srgba::hex("342C24").unwrap();
+
+    let win = player_mark.0 > 0;
+
     commands.spawn((
         UI_RENDER_LAYER,
         StateScoped(Screen::GameOver),
@@ -31,7 +39,7 @@ fn spawn_game_over_ui(
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
-            padding: UiRect::all(Val::VMin(10.0)),
+            padding: UiRect::all(Val::Px(40.0)),
             flex_direction: FlexDirection::Column,
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
@@ -46,59 +54,50 @@ fn spawn_game_over_ui(
                 justify_self: JustifySelf::Center,
                 justify_content: JustifyContent::Center,
                 align_items: AlignItems::Center,
-                padding: UiRect::all(Val::Px(10.0)),
+                padding: UiRect::all(Val::Px(20.0)),
                 ..default()
             },
             Pickable::IGNORE,
             FocusPolicy::Pass,
-            BackgroundColor(ZINC_900.with_alpha(0.4).into()),
-            BorderRadius::all(Val::Px(8.0)),
+            BackgroundColor(bg_color.into()),
+            BorderRadius::all(Val::Px(40.0)),
             Children::spawn((
                 Spawn((
                     Node {
-                        padding: UiRect::all(Val::Px(80.0)),
+                        padding: UiRect::all(Val::Px(10.0)),
                         ..default()
                     },
-                    if player_mark.0 > 0 {
-                        (
-                            Text::new("Congrats, you win!"),
-                            TextColor(GREEN_400.into()),
-                        )
+                    if win {
+                        Text::new("Victory!")
                     } else {
-                        (
-                            Text::new("Lose..."),
-                            TextColor(RED_400.into()),
-                        )
+                        Text::new("Failed!")
                     },
+                    TextColor(font_color.into()),
                     TextLayout::new_with_justify(JustifyText::Center),
-                    TextFont::from_font_size(64.0),
-                    TextShadow::default(),
+                    TextFont::from_font_size(FONT_SIZE * 1.5),
                 )),
-                Spawn((
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        padding: UiRect::all(Val::Px(20.0)),
-                        ..default()
-                    },
-                    Children::spawn(SpawnWith(
-                        |parent: &mut ChildSpawner| {
-                            parent
-                                .spawn(
-                                    LabelButton::new(
-                                        "Return to menu...",
-                                    )
-                                    .with_bacground(
-                                        ButtonBackground::new(
-                                            ORANGE_600
-                                                .with_alpha(0.5),
-                                        ),
-                                    )
-                                    .build(),
-                                )
-                                .observe(return_to_main_menu);
-                        },
-                    )),
-                )),
+                SpawnWith(move |parent: &mut ChildSpawner| {
+                    parent
+                        .spawn(
+                            LabelButton::new(if win {
+                                "Continue"
+                            } else {
+                                "Retry"
+                            })
+                            .with_background(ButtonBackground::new(
+                                if win {
+                                    green_color
+                                } else {
+                                    red_color
+                                }
+                                .with_alpha(0.45),
+                            ))
+                            .with_text_color(font_color)
+                            .with_font_size(FONT_SIZE)
+                            .build(),
+                        )
+                        .observe(return_to_main_menu);
+                }),
             )),
         ))),
     ));
