@@ -8,6 +8,7 @@ use widgets::button::{ButtonBackground, LabelButton};
 use crate::asset_pipeline::{AssetState, SceneAssetsLoader};
 
 mod game_over_ui;
+mod health_bar_ui;
 mod inventory_ui;
 mod player_mark_ui;
 pub mod widgets;
@@ -21,6 +22,7 @@ impl Plugin for UiPlugin {
             world_space::WorldSpaceUiPlugin,
             widgets::WidgetsPlugin,
             inventory_ui::InventoryUiPlugin,
+            health_bar_ui::HealthBarUiPlugin,
             player_mark_ui::PlayerMarkUiPlugin,
             game_over_ui::GameOverUiPlugin,
         ));
