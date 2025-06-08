@@ -10,8 +10,7 @@ impl Plugin for WorldSpaceUiPlugin {
             update_world_ui
                 .after(UiSystem::Layout)
                 .after(TransformSystem::TransformPropagate),
-        )
-        .add_observer(cleanup_world_ui);
+        );
     }
 }
 
@@ -77,25 +76,9 @@ fn update_world_ui(
     }
 }
 
-fn cleanup_world_ui(
-    trigger: Trigger<OnRemove, RelatedWorldUis>,
-    mut commands: Commands,
-    q_related_uis: Query<&RelatedWorldUis>,
-) -> Result {
-    let entity = trigger.target();
-
-    let related_uis = q_related_uis.get(entity)?;
-
-    for ui_entity in related_uis.iter() {
-        commands.entity(ui_entity).despawn();
-    }
-
-    Ok(())
-}
-
 /// Attached to the target entity of [`WorldUi`]s.
 #[derive(Component, Deref, Default, Debug)]
-#[relationship_target(relationship = WorldUi)]
+#[relationship_target(relationship = WorldUi, linked_spawn)]
 pub struct RelatedWorldUis(Vec<Entity>);
 
 /// Component for ui nodes to be transformed into world space
