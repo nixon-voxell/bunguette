@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 mod action;
 mod asset_pipeline;
+mod audio;
 mod camera_controller;
 mod character_controller;
 mod enemy;
@@ -25,6 +26,7 @@ impl Plugin for AppPlugin {
         ))
         .add_plugins((
             action::ActionPlugin,
+            audio::AudioPlugin,
             ui::UiPlugin,
             physics::PhysicsPlugin,
             asset_pipeline::AssetPipelinePlugin,
