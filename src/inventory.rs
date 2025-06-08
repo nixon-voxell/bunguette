@@ -18,25 +18,11 @@ impl Plugin for InventoryPlugin {
             inventory_input::InventoryInputPlugin,
             item::ItemPlugin,
         ))
-        .add_observer(setup_item_collision)
         .add_observer(handle_item_collection)
         .add_systems(Update, detect_item_collisions);
 
         app.register_type::<Inventory>().register_type::<Item>();
     }
-}
-
-fn setup_item_collision(
-    trigger: Trigger<OnAdd, Item>,
-    mut commands: Commands,
-) {
-    commands.entity(trigger.target()).insert((
-        CollisionLayers::new(
-            GameLayer::InventoryItem,
-            LayerMask::ALL,
-        ),
-        CollisionEventsEnabled,
-    ));
 }
 
 /// Detect item collection
@@ -89,7 +75,7 @@ fn detect_item_collisions(
                 // Only auto-collect ingredients
                 if item_meta.item_type == ItemType::Ingredient {
                     info!(
-                        "Player {:?} collecting item {:?} ('{}') via collision event",
+                        "Player {} collecting item {} ('{}').",
                         player_entity, item_entity, item.id
                     );
 
@@ -122,7 +108,7 @@ fn handle_item_collection(
 
     if q_players.get(player_entity).is_err() {
         warn!(
-            "Attempted to collect item for non-player entity: {}",
+            "Attempted to collect item for non-player entity: {}.",
             player_entity
         );
         return;
@@ -147,7 +133,7 @@ fn handle_item_collection(
     if q_inventories.get(player_entity).is_err() {
         commands.entity(player_entity).insert(Inventory::default());
         inventory_just_created = true;
-        info!("Created new inventory for player {:?}", player_entity);
+        info!("Created new inventory for player {}", player_entity);
     }
 
     if inventory_just_created {
@@ -341,6 +327,10 @@ impl Inventory {
 /// Core data for any item (both towers and ingredients).
 #[derive(Component, Reflect)]
 #[reflect(Component)]
+#[require(
+    CollisionEventsEnabled,
+    CollisionLayers::new(GameLayer::InventoryItem, LayerMask::ALL,)
+)]
 pub struct Item {
     /// A unique identifier that corresponds to [`item::ItemMeta`]
     pub id: String,

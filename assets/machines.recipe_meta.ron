@@ -6,7 +6,7 @@
             ],
             output_id: "gun_tower",
             output_quantity: 1,
-            cooking_duration: 8.0,
+            cooking_duration: 4.0,
             prefab_name: "wok",
         ),
         "rotisserie": (
@@ -15,7 +15,7 @@
             ],
             output_id: "cannon_tower",
             output_quantity: 1,
-            cooking_duration: 10.0,
+            cooking_duration: 6.0,
             prefab_name: "rotisserie",
         ),
     }
