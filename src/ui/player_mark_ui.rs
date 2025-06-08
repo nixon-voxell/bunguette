@@ -70,9 +70,9 @@ fn spawn_player_mark_ui(
             Children::spawn((
                 Spawn((
                     Node {
-                        width: Val::Px(40.0),
-                        height: Val::Px(40.0),
-                        margin: UiRect::horizontal(Val::Px(20.0)),
+                        width: Val::Px(30.0),
+                        height: Val::Px(30.0),
+                        margin: UiRect::right(Val::Px(20.0)),
                         ..default()
                     },
                     ImageNode::new(

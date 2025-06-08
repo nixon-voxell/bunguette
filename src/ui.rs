@@ -1,5 +1,4 @@
 use bevy::asset::load_internal_binary_asset;
-use bevy::color::palettes::tailwind::*;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
@@ -89,12 +88,12 @@ fn load_level1(mut scenes: SceneAssetsLoader) -> Result {
 }
 
 fn setup_menu(mut commands: Commands) {
-    let bg_color = Srgba::hex("BFB190").unwrap();
-    let font_color = Srgba::hex("342C24").unwrap();
-    let play_color = Srgba::hex("DAC682").unwrap();
-    let exit_color = Srgba::hex("A39175").unwrap();
+    const FONT_SIZE: f32 = 30.0;
 
-    let font_size = 30.0;
+    let bg_color = Srgba::hex("BFB190").unwrap().with_alpha(0.4);
+    let font_color = Srgba::hex("342C24").unwrap();
+    let play_color = Srgba::hex("FFDE59").unwrap().with_alpha(0.45);
+    let exit_color = Srgba::hex("856850").unwrap().with_alpha(0.45);
 
     commands.spawn((
         StateScoped(Screen::Menu),
@@ -117,12 +116,16 @@ fn setup_menu(mut commands: Commands) {
                 padding: UiRect::all(Val::Px(20.0)),
                 ..default()
             },
-            BackgroundColor(bg_color.with_alpha(0.4).into()),
+            BackgroundColor(bg_color.into()),
             BorderRadius::all(Val::Px(40.0)),
             Children::spawn((
                 Spawn((
+                    Node {
+                        padding: UiRect::all(Val::Px(10.0)),
+                        ..default()
+                    },
                     Text::new("Bunguette"),
-                    TextFont::from_font_size(font_size * 1.5),
+                    TextFont::from_font_size(FONT_SIZE * 1.5),
                     TextColor(font_color.into()),
                 )),
                 SpawnWith(move |parent: &mut ChildSpawner| {
@@ -133,7 +136,7 @@ fn setup_menu(mut commands: Commands) {
                                     ButtonBackground::new(play_color),
                                 )
                                 .with_text_color(font_color)
-                                .with_font_size(font_size)
+                                .with_font_size(FONT_SIZE)
                                 .build(),
                         )
                         .observe(play_on_click);
@@ -147,7 +150,7 @@ fn setup_menu(mut commands: Commands) {
                                     ButtonBackground::new(exit_color),
                                 )
                                 .with_text_color(font_color)
-                                .with_font_size(font_size)
+                                .with_font_size(FONT_SIZE)
                                 .build(),
                         )
                         .observe(exit_on_click);
