@@ -3,6 +3,8 @@ use bevy::prelude::*;
 use crate::asset_pipeline::{CurrentScene, PrefabAssets, PrefabName};
 use crate::ui::Screen;
 
+use super::Enemy;
+
 pub(super) struct EnemySpawnerPlugin;
 
 impl Plugin for EnemySpawnerPlugin {
@@ -39,6 +41,7 @@ fn on_add_spawner(
 fn spawn_enemy(
     mut commands: Commands,
     q_spawner: Query<&GlobalTransform, With<EnemySpawner>>,
+    q_enemies: Query<(), With<Enemy>>,
     countdown: Res<WaveCountdown>,
     timer: Res<SpawnTimer>,
     mut spawn_count: ResMut<SpawnCount>,
@@ -76,9 +79,11 @@ fn spawn_enemy(
                 info!("Entering wave 3.")
             }
             SpawnWave::Three => {
-                next_wave.set(SpawnWave::None);
-                next_screen.set(Screen::GameOver);
-                info!("Game over!")
+                if q_enemies.iter().len() == 0 {
+                    next_wave.set(SpawnWave::None);
+                    next_screen.set(Screen::GameOver);
+                    info!("Game over!")
+                }
             }
             SpawnWave::None => {}
         }

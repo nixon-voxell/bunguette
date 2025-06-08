@@ -10,7 +10,7 @@ use crate::ui::Screen;
 use crate::util::PropagateComponentAppExt;
 
 mod animation;
-mod spawner;
+pub mod spawner;
 
 pub(super) struct EnemyPlugin;
 

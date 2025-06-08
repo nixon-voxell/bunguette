@@ -264,7 +264,9 @@ pub struct Preview;
 #[require(
     RigidBody::Kinematic,
     CollisionEventsEnabled,
-    CollisionLayers::new(GameLayer::Projectile, GameLayer::Enemy,)
+    CollisionLayers::new(GameLayer::Projectile, GameLayer::Enemy,),
+    Collider::sphere(0.2),
+    Sensor
 )]
 pub struct Projectile {
     pub velocity: Vec3,
