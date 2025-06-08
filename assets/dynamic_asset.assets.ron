@@ -19,6 +19,6 @@
     ),
 
     "scenes.level1": File (
-        path: "scenes/bread_level.glb",
+        path: "scenes/bread_level.gltf",
     ),
 })
