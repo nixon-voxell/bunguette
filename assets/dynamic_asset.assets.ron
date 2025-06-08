@@ -13,6 +13,8 @@
             "prefabs/corn.glb",
             "prefabs/polo_bun_small.glb",
             "prefabs/baguette_small.glb",
+            "prefabs/popcorn.glb",
+            "prefabs/roasted_corn.glb",
         ],
     ),
 

@@ -229,7 +229,7 @@ fn freed_machine_ui(
                                 JustifyText::Center,
                             ),
                             TextFont {
-                                font_size: 13.0,
+                                font_size: 20.0,
                                 ..default()
                             },
                             TextColor(SLATE_200.into()),

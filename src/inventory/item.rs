@@ -55,6 +55,10 @@ impl ItemMeta {
     pub fn prefab_name(&self) -> PrefabName {
         PrefabName::FileName(&self.prefab_name)
     }
+
+    pub fn raw_prefab_name(&self) -> &str {
+        &self.prefab_name
+    }
 }
 
 #[derive(Resource)]
