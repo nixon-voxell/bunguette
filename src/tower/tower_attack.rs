@@ -2,11 +2,12 @@ use avian3d::prelude::*;
 use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
 use bevy::prelude::*;
 
-use crate::asset_pipeline::{CurrentScene, PrefabAssets, PrefabName};
+use crate::asset_pipeline::{
+    AssetState, CurrentScene, PrefabAssets, PrefabName,
+};
 use crate::enemy::{Enemy, IsEnemy, Path};
 use crate::physics::GameLayer;
 use crate::player::player_attack::AttackCooldown;
-use crate::ui::Screen;
 
 use super::Projectile;
 
@@ -26,9 +27,8 @@ impl Plugin for TowerAttackPlugin {
                     .chain(),
                 handle_projectile_collisions,
                 projectile_movement,
-                despawn_on_death,
-            )
-                .run_if(in_state(Screen::EnterLevel)),
+                despawn_on_death.run_if(in_state(AssetState::Loaded)),
+            ),
         );
 
         app.register_type::<Tower>().register_type::<MaxHealth>();

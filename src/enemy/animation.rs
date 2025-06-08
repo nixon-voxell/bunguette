@@ -53,7 +53,6 @@ fn movement_animation(
                     .repeat();
             }
         } else {
-            info!("Walking...");
             let walk_node = *node_map
                 .get("Walk")
                 .ok_or("No walking animation found for enemy!")?;
