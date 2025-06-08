@@ -231,7 +231,7 @@ fn tower_placement_and_preview(
                         .default_scene
                         .clone()
                         .ok_or(
-                            "Tower prefab have a default scene.",
+                            "Tower prefab should have a default scene.",
                         )?,
                 ),
                 Transform::from_translation(tile_position),

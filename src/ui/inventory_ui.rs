@@ -1,6 +1,7 @@
+use bevy::color::palettes::tailwind::*;
+use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
-use std::collections::HashMap;
 
 use crate::camera_controller::UI_RENDER_LAYER;
 use crate::interaction::InteractionPlayer;
@@ -13,350 +14,244 @@ pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_systems(Startup, split_screen_ui).add_systems(
             Update,
-            (update_ingredient_display, update_tower_display),
-        )
-        .init_resource::<IngredientUI>()
-        .init_resource::<TowerUI>();
+            (clear_inventory_ui, spawn_inventory_ui).chain(),
+        );
     }
 }
 
-#[derive(Resource, Default)]
-struct IngredientUI {
-    // player_entity -> Vec<ingredient_ui_entities>
-    ingredient_entities: HashMap<Entity, Vec<Entity>>,
+fn clear_inventory_ui(
+    mut commands: Commands,
+    inventory_ui: Res<InventoryUi>,
+) {
+    [
+        inventory_ui.a_towers,
+        inventory_ui.a_ingredients,
+        inventory_ui.b_towers,
+        inventory_ui.b_ingredients,
+    ]
+    .iter()
+    .for_each(|e| {
+        commands.entity(*e).despawn_related::<Children>();
+    });
 }
 
-#[derive(Resource, Default)]
-struct TowerUI {
-    // player_entity -> Vec<tower_ui_entities>
-    tower_entities: HashMap<Entity, Vec<Entity>>,
-}
-
-/// System that displays towers on the bottom right
-fn update_tower_display(
+fn spawn_inventory_ui(
     mut commands: Commands,
     q_players: Query<
-        (Entity, &Inventory, &PlayerType),
+        (&Inventory, &PlayerType),
         With<InteractionPlayer>,
     >,
     item_registry: ItemRegistry,
-    mut tower_ui: ResMut<TowerUI>,
-) {
-    for (player_entity, inventory, player_type) in q_players.iter() {
-        // Clear existing UI elements for this player
-        if let Some(existing_entities) =
-            tower_ui.tower_entities.get(&player_entity)
-        {
-            for &entity in existing_entities {
-                commands.entity(entity).despawn();
+    inventory_ui: Res<InventoryUi>,
+) -> Result {
+    for (inventory, player_type) in q_players.iter() {
+        let (tower_node, ingredient_node) = match player_type {
+            PlayerType::A => {
+                (inventory_ui.a_towers, inventory_ui.a_ingredients)
             }
-        }
-
-        // Collect towers to display
-        let towers: Vec<_> = inventory
-            .towers()
-            .iter()
-            .filter(|(_, count)| **count > 0)
-            .collect();
-
-        if towers.is_empty() {
-            tower_ui.tower_entities.insert(player_entity, Vec::new());
-            continue;
-        }
-
-        // Calculate position based on player type (bottom right)
-        let base_x = match player_type {
-            PlayerType::A => 800.0, // Right side for Player A
-            PlayerType::B => 1760.0, // Right side for Player B
+            PlayerType::B => {
+                (inventory_ui.b_towers, inventory_ui.b_ingredients)
+            }
         };
-        let base_y = 20.0; // Bottom
 
-        let mut new_entities = Vec::new();
-
-        // Create UI elements for each tower
-        for (i, (tower_id, count)) in towers.iter().enumerate() {
-            // Check if this tower is selected
-            let is_selected =
-                inventory.selected_tower.as_ref() == Some(tower_id);
-
-            // Space items 80px apart
-            let x_offset = (i as f32) * 80.0;
-
-            //  Determine colors and border based on selection state
-            let (background_color, border_color, border_width) =
-                if is_selected {
-                    (
-                        Color::srgba(1.0, 0.6, 0.3, 0.9),
-                        Color::srgba(1.0, 1.0, 0.0, 1.0),
-                        4.0,
-                    )
-                } else {
-                    (
-                        Color::srgba(0.8, 0.4, 0.2, 0.8),
-                        Color::srgba(1.0, 1.0, 1.0, 1.0),
-                        2.0,
-                    )
-                };
-
-            // Create the tower item
-            let tower_entity = commands
-                .spawn((
+        let item_bundle =
+            |border_width: f32,
+             bg_color: Color,
+             border_color: Color,
+             item_id: &str,
+             item_count: u32| {
+                Result::<_, String>::Ok((
                     Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(base_x + x_offset),
-                        bottom: Val::Px(base_y),
-                        width: Val::Px(70.0),
-                        height: Val::Px(70.0),
                         justify_content: JustifyContent::Center,
                         align_items: AlignItems::Center,
                         flex_direction: FlexDirection::Column,
                         border: UiRect::all(Val::Px(border_width)),
+                        margin: UiRect::horizontal(Val::Px(20.0)),
+                        overflow: Overflow::clip(),
                         ..default()
                     },
-                    BackgroundColor(background_color),
-                    BorderColor(border_color),
-                    FocusPolicy::Block,
-                    UI_RENDER_LAYER,
-                ))
-                .with_children(|parent| {
-                    // Try to show icon if available
-                    if let Some(item_meta_asset) = item_registry.get()
-                    {
-                        if let Some(meta) =
-                            item_meta_asset.get(*tower_id)
-                        {
-                            parent.spawn((
-                                ImageNode::new(meta.icon.clone()),
-                                Node {
-                                    width: Val::Px(40.0),
-                                    height: Val::Px(40.0),
-                                    margin: UiRect::bottom(Val::Px(
-                                        4.0,
-                                    )),
-                                    ..default()
-                                },
-                            ));
-                        } else {
-                            // Show tower name if no icon found
-                            parent.spawn((
-                                Text::new(
-                                    tower_id
-                                        .chars()
-                                        .take(4)
-                                        .collect::<String>(),
-                                ),
-                                TextFont {
-                                    font_size: 12.0,
-                                    ..default()
-                                },
-                                TextColor(Color::WHITE),
-                                Node {
-                                    margin: UiRect::bottom(Val::Px(
-                                        4.0,
-                                    )),
-                                    ..default()
-                                },
-                            ));
-                        }
-                    } else {
-                        // No registry loaded, show tower ID
-                        parent.spawn((
-                            Text::new(
-                                tower_id
-                                    .chars()
-                                    .take(4)
-                                    .collect::<String>(),
-                            ),
-                            TextFont {
-                                font_size: 12.0,
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
+                    BackgroundColor(bg_color.with_alpha(0.5)),
+                    BorderColor(border_color.with_alpha(0.7)),
+                    BorderRadius::all(Val::Px(8.0)),
+                    BoxShadow::new(
+                        bg_color.with_alpha(0.8),
+                        Val::Px(2.0),
+                        Val::Px(2.0),
+                        Val::Px(4.0),
+                        Val::Px(6.0),
+                    ),
+                    Children::spawn((
+                        Spawn((
                             Node {
+                                width: Val::Px(80.0),
+                                height: Val::Px(80.0),
                                 margin: UiRect::bottom(Val::Px(4.0)),
+                                padding: UiRect::all(Val::Px(4.0)),
                                 ..default()
                             },
-                        ));
-                    }
+                            ImageNode::new(
+                                item_registry
+                                    .get_item(item_id)
+                                    .ok_or(format!(
+                                        "No icon for tower {item_id}"
+                                    ))?
+                                    .icon
+                                    .clone(),
+                            ),
+                        )),
+                        Spawn((
+                            Text::new(item_count.to_string()),
+                            TextFont {
+                                font_size: 16.0,
+                                ..default()
+                            },
+                            TextColor(border_color),
+                        )),
+                    )),
+                ))
+            };
 
-                    // Show quantity
-                    let text_color = if is_selected {
-                        // Yellow text for selected
-                        Color::srgba(1.0, 1.0, 0.0, 1.0)
-                        // White text for normal
-                    } else {
-                        Color::WHITE
-                    };
+        for (tower_id, count) in
+            inventory.towers().iter().filter(|(_, count)| **count > 0)
+        {
+            // Check if this tower is selected
+            let is_selected =
+                inventory.selected_tower.as_ref() == Some(tower_id);
 
-                    parent.spawn((
-                        Text::new(count.to_string()),
-                        TextFont {
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(text_color),
-                    ));
-                })
+            //  Determine colors and border based on selection state
+            let (bg_color, border_color) = if is_selected {
+                (EMERALD_800, EMERALD_500)
+            } else {
+                (SLATE_800, SLATE_200)
+            };
+
+            // Create the item node.
+            let tower_item_node = commands
+                .spawn(item_bundle(
+                    2.0,
+                    bg_color.into(),
+                    border_color.into(),
+                    tower_id,
+                    *count,
+                )?)
                 .id();
 
-            new_entities.push(tower_entity);
+            commands.entity(tower_node).add_child(tower_item_node);
         }
 
-        // Store the new entities
-        tower_ui.tower_entities.insert(player_entity, new_entities);
-    }
-}
-
-/// Simple system that directly creates/updates ingredient UI elements
-fn update_ingredient_display(
-    mut commands: Commands,
-    q_players: Query<
-        (Entity, &Inventory, &PlayerType),
-        With<InteractionPlayer>,
-    >,
-    item_registry: ItemRegistry,
-    mut ingredient_ui: ResMut<IngredientUI>,
-) {
-    for (player_entity, inventory, player_type) in q_players.iter() {
-        // Clear existing UI elements for this player
-        if let Some(existing_entities) =
-            ingredient_ui.ingredient_entities.get(&player_entity)
-        {
-            for &entity in existing_entities {
-                commands.entity(entity).despawn();
-            }
-        }
-
-        // Collect ingredients to display
-        let ingredients: Vec<_> = inventory
+        for (ingredient_id, count) in inventory
             .ingredients()
             .iter()
             .filter(|(_, count)| **count > 0)
-            .collect();
-
-        if ingredients.is_empty() {
-            ingredient_ui
-                .ingredient_entities
-                .insert(player_entity, Vec::new());
-            continue;
-        }
-
-        // Calculate position based on player type
-        let base_x = match player_type {
-            PlayerType::A => 20.0,   // Left side
-            PlayerType::B => 1000.0, // Right side
-        };
-        let base_y = 20.0; // Bottom
-
-        let mut new_entities = Vec::new();
-
-        // Create UI elements for each ingredient
-        for (i, (ingredient_id, count)) in
-            ingredients.iter().enumerate()
         {
-            let x_offset = (i as f32) * 80.0; // Space items 80px apart
-
-            // Create the ingredient item
-            let ingredient_entity = commands
-                .spawn((
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(base_x + x_offset),
-                        bottom: Val::Px(base_y),
-                        width: Val::Px(70.0),
-                        height: Val::Px(70.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        flex_direction: FlexDirection::Column,
-                        border: UiRect::all(Val::Px(2.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.2, 0.4, 0.8, 0.8)), // Blue background
-                    BorderColor(Color::srgba(1.0, 1.0, 1.0, 1.0)), // White border
-                    FocusPolicy::Block,
-                    UI_RENDER_LAYER,
-                ))
-                .with_children(|parent| {
-                    // Try to show icon if available
-                    if let Some(item_meta_asset) = item_registry.get()
-                    {
-                        if let Some(meta) =
-                            item_meta_asset.get(*ingredient_id)
-                        {
-                            parent.spawn((
-                                ImageNode::new(meta.icon.clone()),
-                                Node {
-                                    width: Val::Px(40.0),
-                                    height: Val::Px(40.0),
-                                    margin: UiRect::bottom(Val::Px(
-                                        4.0,
-                                    )),
-                                    ..default()
-                                },
-                            ));
-                        } else {
-                            // Show ingredient name if no icon found
-                            parent.spawn((
-                                Text::new(
-                                    ingredient_id
-                                        .chars()
-                                        .take(4)
-                                        .collect::<String>(),
-                                ),
-                                TextFont {
-                                    font_size: 12.0,
-                                    ..default()
-                                },
-                                TextColor(Color::WHITE),
-                                Node {
-                                    margin: UiRect::bottom(Val::Px(
-                                        4.0,
-                                    )),
-                                    ..default()
-                                },
-                            ));
-                        }
-                    } else {
-                        // No registry loaded, show ingredient ID
-                        parent.spawn((
-                            Text::new(
-                                ingredient_id
-                                    .chars()
-                                    .take(4)
-                                    .collect::<String>(),
-                            ),
-                            TextFont {
-                                font_size: 12.0,
-                                ..default()
-                            },
-                            TextColor(Color::WHITE),
-                            Node {
-                                margin: UiRect::bottom(Val::Px(4.0)),
-                                ..default()
-                            },
-                        ));
-                    }
-
-                    // Show quantity
-                    parent.spawn((
-                        Text::new(count.to_string()),
-                        TextFont {
-                            font_size: 16.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ));
-                })
+            // Create the item node.
+            let ingredient_item_node = commands
+                .spawn(item_bundle(
+                    2.0,
+                    SLATE_800.into(),
+                    SLATE_200.into(),
+                    ingredient_id,
+                    *count,
+                )?)
                 .id();
 
-            new_entities.push(ingredient_entity);
+            commands
+                .entity(ingredient_node)
+                .add_child(ingredient_item_node);
         }
-
-        // Store the new entities
-        ingredient_ui
-            .ingredient_entities
-            .insert(player_entity, new_entities);
     }
+
+    Ok(())
+}
+
+/// Create split screen ui.
+fn split_screen_ui(mut commands: Commands) {
+    let split_bundle =
+        |tower_node: Entity, ingreient_node: Entity| {
+            (
+                Node {
+                    // Takes half the space.
+                    width: Val::Percent(50.0),
+                    height: Val::Percent(100.0),
+                    // Push the child node towards the bottom.
+                    flex_direction: FlexDirection::Column,
+                    justify_content: JustifyContent::End,
+                    ..default()
+                },
+                FocusPolicy::Pass,
+                Pickable::IGNORE,
+                Children::spawn(SpawnWith(
+                    move |parent: &mut ChildSpawner| {
+                        parent
+                            .spawn((
+                                Node {
+                                    flex_direction:
+                                        FlexDirection::Row,
+                                    justify_content:
+                                        JustifyContent::SpaceBetween,
+                                    padding: UiRect::all(Val::Px(
+                                        20.0,
+                                    )),
+                                    ..default()
+                                },
+                                FocusPolicy::Pass,
+                                Pickable::IGNORE,
+                            ))
+                            .add_children(&[
+                                tower_node,
+                                ingreient_node,
+                            ]);
+                    },
+                )),
+            )
+        };
+
+    let items_bundle = (
+        Node {
+            flex_direction: FlexDirection::Row,
+            ..default()
+        },
+        FocusPolicy::Pass,
+        Pickable::IGNORE,
+    );
+
+    let a_towers = commands.spawn(items_bundle.clone()).id();
+    let a_ingredients = commands.spawn(items_bundle.clone()).id();
+
+    let b_towers = commands.spawn(items_bundle.clone()).id();
+    let b_ingredients = commands.spawn(items_bundle).id();
+
+    commands.spawn((
+        UI_RENDER_LAYER,
+        // Root node.
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            flex_direction: FlexDirection::Row,
+            ..default()
+        },
+        FocusPolicy::Pass,
+        Pickable::IGNORE,
+        Children::spawn((
+            Spawn(split_bundle(a_towers, a_ingredients)),
+            Spawn(split_bundle(b_towers, b_ingredients)),
+        )),
+    ));
+
+    commands.insert_resource(InventoryUi {
+        a_towers,
+        a_ingredients,
+        b_towers,
+        b_ingredients,
+    });
+}
+
+#[derive(Resource, Debug)]
+pub struct InventoryUi {
+    pub a_towers: Entity,
+    pub a_ingredients: Entity,
+    pub b_towers: Entity,
+    pub b_ingredients: Entity,
 }

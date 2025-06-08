@@ -2,6 +2,9 @@ use avian3d::prelude::*;
 use bevy::ecs::component::{ComponentHooks, Immutable, StorageType};
 use bevy::prelude::*;
 
+use crate::asset_pipeline::{
+    AssetState, CurrentScene, PrefabAssets, PrefabName,
+};
 use crate::enemy::{Enemy, IsEnemy, Path};
 use crate::physics::GameLayer;
 use crate::player::player_attack::AttackCooldown;
@@ -24,7 +27,7 @@ impl Plugin for TowerAttackPlugin {
                     .chain(),
                 handle_projectile_collisions,
                 projectile_movement,
-                despawn_on_death,
+                despawn_on_death.run_if(in_state(AssetState::Loaded)),
             ),
         );
 
@@ -261,13 +264,46 @@ fn handle_projectile_collisions(
 
 fn despawn_on_death(
     mut commands: Commands,
-    q_healths: Query<(&Health, Entity), Changed<Health>>,
-) {
-    for (health, entity) in q_healths.iter() {
-        if health.0 <= 0.0 {
-            commands.entity(entity).despawn();
+    q_healths: Query<
+        (&Health, &GlobalTransform, Has<Enemy>, Entity),
+        Changed<Health>,
+    >,
+    prefabs: Res<PrefabAssets>,
+    gltfs: Res<Assets<Gltf>>,
+    current_scene: Res<CurrentScene>,
+) -> Result {
+    let Some(current_scene) = current_scene.get() else {
+        return Ok(());
+    };
+
+    for (health, global_transform, is_enemy, entity) in
+        q_healths.iter()
+    {
+        if health.0 > 0.0 {
+            continue;
+        }
+        commands.entity(entity).despawn();
+
+        if is_enemy {
+            let scene = prefabs
+                .get_gltf(PrefabName::FileName("corn"), &gltfs)
+                .ok_or("Can't find corn prefab!")?
+                .default_scene
+                .clone()
+                .ok_or("Corn prefab shoould have a default scene.")?;
+
+            // Spawn new corns for the player.
+            commands.spawn((
+                SceneRoot(scene),
+                Transform::from_translation(
+                    global_transform.translation() + Vec3::Y * 1.5,
+                ),
+                ChildOf(current_scene),
+            ));
         }
     }
+
+    Ok(())
 }
 
 /// Move projectiles.
