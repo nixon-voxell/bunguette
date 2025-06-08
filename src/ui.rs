@@ -41,21 +41,19 @@ impl Plugin for UiPlugin {
 
 fn set_cursor_grab_mode(
     grab_mode: CursorGrabMode,
-) -> impl Fn(Query<'_, '_, &mut Window, With<PrimaryWindow>>) -> Result
-{
-    move |mut q_windows: Query<
-        &mut Window,
-        With<PrimaryWindow>,
-    >| -> Result {
-        let mut primary_window = q_windows.single_mut()?;
-        primary_window.cursor_options.grab_mode = grab_mode;
-        primary_window.cursor_options.visible = match grab_mode {
+) -> impl Fn(Query<'_, '_, &mut Window, With<PrimaryWindow>>) {
+    move |mut q_windows: Query<&mut Window, With<PrimaryWindow>>| {
+        let Ok(mut window) = q_windows.single_mut() else {
+            error!("No primary window!");
+            return;
+        };
+
+        window.cursor_options.grab_mode = grab_mode;
+        window.cursor_options.visible = match grab_mode {
             CursorGrabMode::None => true,
             CursorGrabMode::Confined => true,
             CursorGrabMode::Locked => false,
         };
-
-        Ok(())
     }
 }
 
@@ -144,4 +142,5 @@ pub enum Screen {
     Menu,
     // LevelSelection,
     EnterLevel, // TODO: Create substates for levels (1, 2, 3, ...).
+    GameOver,
 }

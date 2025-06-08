@@ -39,7 +39,6 @@ fn movement_animation(
             q_animation_players.get_mut(animation_target.player)?;
 
         if reached_target {
-            info!("Eating...");
             let eat_node = *node_map
                 .get("Eat")
                 .ok_or("No idle animation found for enemy!")?;

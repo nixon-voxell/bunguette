@@ -75,7 +75,7 @@ fn detect_item_collisions(
                 // Only auto-collect ingredients
                 if item_meta.item_type == ItemType::Ingredient {
                     info!(
-                        "Player {:?} collecting item {:?} ('{}') via collision event",
+                        "Player {} collecting item {} ('{}').",
                         player_entity, item_entity, item.id
                     );
 
@@ -108,7 +108,7 @@ fn handle_item_collection(
 
     if q_players.get(player_entity).is_err() {
         warn!(
-            "Attempted to collect item for non-player entity: {}",
+            "Attempted to collect item for non-player entity: {}.",
             player_entity
         );
         return;
@@ -133,7 +133,7 @@ fn handle_item_collection(
     if q_inventories.get(player_entity).is_err() {
         commands.entity(player_entity).insert(Inventory::default());
         inventory_just_created = true;
-        info!("Created new inventory for player {:?}", player_entity);
+        info!("Created new inventory for player {}", player_entity);
     }
 
     if inventory_just_created {
