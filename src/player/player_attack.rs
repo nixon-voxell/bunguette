@@ -122,9 +122,9 @@ fn player_shooting(
             .ok_or(format!("Can't find {weapon_name} prefab!"))?
             .default_scene
             .clone()
-            .ok_or(
-                "{weapon_name} prefab should have a default scene.",
-            )?;
+            .ok_or(format!(
+                "{weapon_name} prefab should have a default scene."
+            ))?;
 
         // Spawn projectile using weapon stats
         commands.spawn((
@@ -139,7 +139,8 @@ fn player_shooting(
             Visibility::Inherited,
             Children::spawn(Spawn((
                 SceneRoot(handle),
-                Transform::from_scale(Vec3::splat(0.2)),
+                Transform::from_scale(Vec3::splat(0.2))
+                    .looking_to(target_direction, Vec3::Y),
             ))),
         ));
 

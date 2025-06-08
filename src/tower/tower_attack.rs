@@ -9,7 +9,7 @@ use crate::enemy::{Enemy, IsEnemy, Path};
 use crate::physics::GameLayer;
 use crate::player::player_attack::AttackCooldown;
 
-use super::Projectile;
+use super::{Projectile, TowerPrefabName};
 
 pub(super) struct TowerAttackPlugin;
 
@@ -22,7 +22,8 @@ impl Plugin for TowerAttackPlugin {
                     check_target_range,
                     find_target,
                     tower_rotation,
-                    tower_shooting,
+                    tower_shooting
+                        .run_if(in_state(AssetState::Loaded)),
                 )
                     .chain(),
                 handle_projectile_collisions,
@@ -162,18 +163,25 @@ fn tower_shooting(
             &Tower,
             &mut AttackCooldown,
             &Target,
+            &TowerPrefabName,
         ),
         Without<Enemy>,
     >,
     q_enemies: Query<&GlobalTransform, With<Enemy>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    prefabs: Res<PrefabAssets>,
+    gltfs: Res<Assets<Gltf>>,
 ) -> Result {
     // Minimum facing accuracy to fire.
     const MIN_FACING_ACCURACY: f32 = 0.9;
 
-    for (transform, global_transform, tower, mut cooldown, target) in
-        q_towers.iter_mut()
+    for (
+        transform,
+        global_transform,
+        tower,
+        mut cooldown,
+        target,
+        prefab_name,
+    ) in q_towers.iter_mut()
     {
         if cooldown.0 > 0.0 {
             continue;
@@ -198,19 +206,34 @@ fn tower_shooting(
         let direction =
             (target_position - projectile_start).normalize();
 
+        let model_name = match prefab_name.0.as_ref() {
+            "gun_tower" => "popcorn",
+            "cannon_tower" => "roasted_corn",
+            _ => return Err("Unrecognized tower...".into()),
+        };
+
+        let handle = prefabs
+            .get_gltf(PrefabName::FileName(model_name), &gltfs)
+            .ok_or(format!("Can't find {model_name} prefab!"))?
+            .default_scene
+            .clone()
+            .ok_or(format!(
+                "{model_name} prefab should have a default scene."
+            ))?;
+
         commands.spawn((
-            Mesh3d(meshes.add(Sphere::new(0.1))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.2, 0.8, 1.0),
-                emissive: LinearRgba::rgb(0.5, 2.0, 3.0),
-                ..default()
-            })),
             Transform::from_translation(projectile_start),
             Projectile {
                 velocity: direction * tower.projectile_speed,
                 damage: tower.damage,
                 lifetime: 3.0,
             },
+            Visibility::Inherited,
+            Children::spawn(Spawn((
+                SceneRoot(handle),
+                Transform::from_scale(Vec3::splat(0.2))
+                    .looking_to(direction, Vec3::Y),
+            ))),
         ));
 
         cooldown.0 = tower.attack_cooldown;

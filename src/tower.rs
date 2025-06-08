@@ -12,24 +12,31 @@ use crate::inventory::item::{ItemRegistry, ItemType};
 use crate::physics::GameLayer;
 use crate::player::{PlayerType, QueryPlayers};
 use crate::tile::{PlacedBy, PlacedOn, Tile};
+use crate::util::PropagateComponentAppExt;
 
+mod animation;
 pub mod tower_attack;
 
 pub struct TowerPlugin;
 
 impl Plugin for TowerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(tower_attack::TowerAttackPlugin);
+        app.add_plugins((
+            tower_attack::TowerAttackPlugin,
+            animation::TowerAnimationPlugin,
+        ));
 
-        app.add_systems(Startup, setup_preview_cube).add_systems(
-            Update,
-            (
-                tower_placement_and_preview
-                    .run_if(in_state(AssetState::Loaded)),
-                (enter_placement_mode, exit_placement_mode),
-            )
-                .chain(),
-        );
+        app.propagate_component::<TowerPrefabName, Children>()
+            .add_systems(Startup, setup_preview_cube)
+            .add_systems(
+                Update,
+                (
+                    tower_placement_and_preview
+                        .run_if(in_state(AssetState::Loaded)),
+                    (enter_placement_mode, exit_placement_mode),
+                )
+                    .chain(),
+            );
     }
 }
 
@@ -222,6 +229,7 @@ fn tower_placement_and_preview(
 
             // Spawn the tower.
             commands.spawn((
+                TowerPrefabName(item.raw_prefab_name().to_string()),
                 SceneRoot(
                     prefabs
                         .get_gltf(item.prefab_name(), &gltfs)
@@ -273,3 +281,6 @@ pub struct Projectile {
     pub damage: f32,
     pub lifetime: f32,
 }
+
+#[derive(Component, Debug, Clone)]
+pub struct TowerPrefabName(String);
