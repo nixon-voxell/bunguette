@@ -1,5 +1,4 @@
 use bevy::asset::load_internal_binary_asset;
-use bevy::color::palettes::tailwind::*;
 use bevy::ecs::spawn::SpawnWith;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
