@@ -60,7 +60,7 @@ fn spawn_health_bar(
                 Node {
                     position_type: PositionType::Absolute,
                     width: Val::VMin(6.0),
-                    height: Val::VMin(0.8),
+                    height: Val::VMin(0.6),
                     ..default()
                 },
                 BackgroundColor(Color::BLACK.with_alpha(0.9)),
@@ -120,7 +120,7 @@ fn update_health_bar_visibility(
     mut q_health_bars: Query<&mut Visibility, With<WorldUi>>,
     q_cameras: QueryCameras<&GlobalTransform>,
 ) -> Result {
-    const MAX_DISTANCE_SQ: f32 = 15.0 * 15.0;
+    const MAX_DISTANCE_SQ: f32 = 10.0 * 10.0;
 
     let camera_a_position =
         q_cameras.get(CameraType::A)?.translation();
