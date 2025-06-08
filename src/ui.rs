@@ -26,14 +26,14 @@ impl Plugin for UiPlugin {
                 OnEnter(Screen::Menu),
                 (
                     setup_menu,
-                    set_cursor_grab_mode(CursorGrabMode::Locked),
+                    set_cursor_grab_mode(CursorGrabMode::None),
                 ),
             )
             .add_systems(
                 OnEnter(Screen::EnterLevel),
                 (
                     load_level1,
-                    set_cursor_grab_mode(CursorGrabMode::None),
+                    set_cursor_grab_mode(CursorGrabMode::Locked),
                 ),
             );
     }
@@ -46,10 +46,14 @@ fn set_cursor_grab_mode(
     move |mut q_windows: Query<
         &mut Window,
         With<PrimaryWindow>,
-    >|
-          -> Result {
+    >| -> Result {
         let mut primary_window = q_windows.single_mut()?;
         primary_window.cursor_options.grab_mode = grab_mode;
+        primary_window.cursor_options.visible = match grab_mode {
+            CursorGrabMode::None => true,
+            CursorGrabMode::Confined => true,
+            CursorGrabMode::Locked => false,
+        };
 
         Ok(())
     }
