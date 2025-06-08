@@ -87,7 +87,7 @@ fn spawn_game_over_ui(
                                     LabelButton::new(
                                         "Return to menu...",
                                     )
-                                    .with_bacground(
+                                    .with_background(
                                         ButtonBackground::new(
                                             ORANGE_600
                                                 .with_alpha(0.5),

@@ -13,7 +13,7 @@ mod physics;
 mod player;
 mod tile;
 mod tower;
-mod ui;
+pub mod ui;
 mod util;
 
 pub struct AppPlugin;

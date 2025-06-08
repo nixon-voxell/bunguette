@@ -72,7 +72,7 @@ fn spawn_player_mark_ui(
                     Node {
                         width: Val::Px(40.0),
                         height: Val::Px(40.0),
-                        padding: UiRect::horizontal(Val::Px(20.0)),
+                        margin: UiRect::horizontal(Val::Px(20.0)),
                         ..default()
                     },
                     ImageNode::new(
