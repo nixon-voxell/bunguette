@@ -6,7 +6,7 @@ Download the executable file from [itch.io](https://chang-kah-boon.itch.io/bungu
 
 Alternatively, you can also play the [web version](https://nixon-voxell.github.io/bunguette/)!
 
-![./.github/assets/bunguette.png](https://youtu.be/cBMcfEZzbuU)
+[![bunguette](./.github/assets/bunguette.png)](https://youtu.be/cBMcfEZzbuU)
 
 *Click image above for gameplay video on YouTube !*
 
